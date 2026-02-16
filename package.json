@@ -1,0 +1,38 @@
+{
+  "name": "linkedin-job-tracker",
+  "version": "1.0.0",
+  "description": "Automated LinkedIn job tracker with AI matching",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "ui": "tsx src/ui/server.ts",
+    "scrape": "tsx src/scheduler.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^16.4.7",
+    "ejs": "^3.1.10",
+    "express": "^4.21.2",
+    "multer": "^2.0.2",
+    "pdf-parse": "^1.1.1",
+    "playwright-core": "^1.58.2",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/multer": "^2.0.0",
+    "@types/node": "^22.10.2",
+    "@types/pdf-parse": "^1.1.4",
+    "prisma": "^5.22.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

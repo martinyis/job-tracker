@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkedIn Job Tracker</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">Job Tracker</a>
+      <div class="nav-links">
+        <a href="/" class="nav-link active">Dashboard</a>
+        <a href="/setup" class="nav-link">Settings</a>
+      </div>
+      <div class="nav-status">
+        <% if (scraperState.isRunning) { %>
+          <span class="badge badge-running">Scraper Running</span>
+        <% } %>
+        <% if (scraperState.errorCount > 0) { %>
+          <span class="badge badge-error">Errors: <%= scraperState.errorCount %></span>
+        <% } %>
+        <span class="nav-meta">Last run: <%= scraperState.lastRunAt ? new Date(scraperState.lastRunAt).toLocaleString() : 'Never' %></span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <header>
+      <h1>Dashboard</h1>
+    </header>
+
+    <!-- Stats -->
+    <div class="stats-bar">
+      <div class="stat">
+        <span class="stat-value"><%= stats.totalJobs %></span>
+        <span class="stat-label">Total Jobs</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value"><%= stats.statusCounts.new || 0 %></span>
+        <span class="stat-label">New</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value"><%= stats.statusCounts.reviewed || 0 %></span>
+        <span class="stat-label">Reviewed</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value"><%= stats.statusCounts.applied || 0 %></span>
+        <span class="stat-label">Applied</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value"><%= stats.statusCounts.rejected || 0 %></span>
+        <span class="stat-label">Rejected</span>
+      </div>
+      <div class="stat">
+        <span class="stat-value"><%= stats.averageScore %></span>
+        <span class="stat-label">Avg Score</span>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters">
+      <a href="/" class="filter-btn <%= currentFilter === 'all' ? 'active' : '' %>">All</a>
+      <% statuses.forEach(function(status) { %>
+        <a href="/?status=<%= status %>" class="filter-btn <%= currentFilter === status ? 'active' : '' %>">
+          <%= status.charAt(0).toUpperCase() + status.slice(1) %>
+        </a>
+      <% }); %>
+    </div>
+
+    <!-- Jobs Table -->
+    <% if (jobs.length === 0) { %>
+      <div class="empty-state">
+        <p>No jobs found. <% if (currentFilter !== 'all') { %>Try a different filter or <a href="/">view all</a>.<% } else { %>The scraper hasn't found any matching jobs yet.<% } %></p>
+      </div>
+    <% } else { %>
+      <table class="jobs-table">
+        <thead>
+          <tr>
+            <th>Score</th>
+            <th>Title</th>
+            <th>Company</th>
+            <th>Location</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% jobs.forEach(function(job) { %>
+            <tr class="job-row" data-id="<%= job.id %>">
+              <td>
+                <span class="score score-<%= job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : 'decent' %>">
+                  <%= job.matchScore %>
+                </span>
+              </td>
+              <td class="job-title-cell">
+                <a href="<%= job.link %>" target="_blank" rel="noopener noreferrer"><%= job.title %></a>
+              </td>
+              <td><%= job.company %></td>
+              <td><%= job.location %></td>
+              <td class="nowrap"><%= job.postedDate %></td>
+              <td>
+                <span class="status status-<%= job.status %>"><%= job.status %></span>
+              </td>
+              <td class="actions">
+                <button class="btn-toggle" onclick="toggleDetail('<%= job.id %>')">Details</button>
+                <a href="<%= job.applyLink || job.link %>" target="_blank" rel="noopener noreferrer" class="btn-apply">Apply</a>
+              </td>
+            </tr>
+            <tr class="job-detail" id="detail-<%= job.id %>" style="display: none;">
+              <td colspan="7">
+                <div class="detail-content">
+                  <div class="detail-section">
+                    <h3>AI Match Reason</h3>
+                    <p><%= job.matchReason %></p>
+                  </div>
+                  <div class="detail-section">
+                    <h3>Key Matches</h3>
+                    <div class="tags">
+                      <% job.keyMatchesParsed.forEach(function(match) { %>
+                        <span class="tag"><%= match %></span>
+                      <% }); %>
+                    </div>
+                  </div>
+                  <div class="detail-section">
+                    <h3>Job Description</h3>
+                    <div class="description-text"><%= job.description.substring(0, 500) %><% if (job.description.length > 500) { %>...<% } %></div>
+                  </div>
+                  <div class="detail-actions">
+                    <form method="POST" action="/update-status" class="inline-form">
+                      <input type="hidden" name="id" value="<%= job.id %>">
+                      <% if (job.status !== 'reviewed') { %>
+                        <button type="submit" name="status" value="reviewed" class="btn btn-review">Mark Reviewed</button>
+                      <% } %>
+                      <% if (job.status !== 'applied') { %>
+                        <button type="submit" name="status" value="applied" class="btn btn-applied">Mark Applied</button>
+                      <% } %>
+                      <% if (job.status !== 'rejected') { %>
+                        <button type="submit" name="status" value="rejected" class="btn btn-reject">Reject</button>
+                      <% } %>
+                    </form>
+                    <form method="POST" action="/add-note" class="note-form">
+                      <input type="hidden" name="id" value="<%= job.id %>">
+                      <textarea name="notes" placeholder="Add notes..." rows="2"><%= job.notes || '' %></textarea>
+                      <button type="submit" class="btn btn-note">Save Note</button>
+                    </form>
+                  </div>
+                </div>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <script>
+    function toggleDetail(id) {
+      const row = document.getElementById('detail-' + id);
+      if (row) {
+        row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - LinkedIn Job Tracker</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">Job Tracker</a>
+      <div class="nav-links">
+        <a href="/" class="nav-link">Dashboard</a>
+        <a href="/setup" class="nav-link active">Settings</a>
+      </div>
+      <div class="nav-status">
+        <span class="nav-meta"></span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <header>
+      <h1>Settings</h1>
+    </header>
+
+    <% if (saved) { %>
+      <div class="toast">Settings saved successfully.</div>
+    <% } %>
+
+    <!-- Step indicators -->
+    <div class="setup-steps">
+      <div class="step <%= apiKey && apiKey !== 'sk-ant-...' ? 'step-done' : '' %>">
+        <span class="step-num">1</span>
+        <span class="step-label">API Key & Search</span>
+      </div>
+      <div class="step <%= hasResume ? 'step-done' : '' %>">
+        <span class="step-num">2</span>
+        <span class="step-label">Upload Resume</span>
+      </div>
+      <div class="step <%= settings.profile && settings.profile.preferences && (settings.profile.preferences.remote_only || settings.profile.preferences.preferred_tech_stack.length > 0) ? 'step-done' : '' %>">
+        <span class="step-num">3</span>
+        <span class="step-label">Your Preferences</span>
+      </div>
+    </div>
+
+    <!-- Section 1: Configuration -->
+    <section class="setup-section" id="config">
+      <h2>1. API Key & Search Settings</h2>
+      <p class="section-desc">Enter your Anthropic API key and configure job search preferences. No LinkedIn login needed.</p>
+
+      <form method="POST" action="/setup/config" class="setup-form">
+        <div class="form-group">
+          <label for="ANTHROPIC_API_KEY">Anthropic API Key</label>
+          <input type="password" id="ANTHROPIC_API_KEY" name="ANTHROPIC_API_KEY"
+            value="<%= apiKey || '' %>"
+            placeholder="sk-ant-...">
+        </div>
+
+        <hr class="form-divider">
+
+        <div class="form-group">
+          <label for="JOB_KEYWORDS">Job Search Keywords <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="JOB_KEYWORDS" name="JOB_KEYWORDS"
+            value="<%= settings.search.keywords.join(', ') %>"
+            placeholder="software engineer, full stack developer, ml engineer">
+        </div>
+
+        <div class="form-group">
+          <label for="JOB_LOCATIONS">Preferred Locations <span class="hint">(comma-separated, optional)</span></label>
+          <input type="text" id="JOB_LOCATIONS" name="JOB_LOCATIONS"
+            value="<%= settings.search.locations.join(', ') %>"
+            placeholder="Remote, New York, San Francisco">
+        </div>
+
+        <hr class="form-divider">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="SCRAPE_INTERVAL_MINUTES">Scrape Interval (min)</label>
+            <input type="number" id="SCRAPE_INTERVAL_MINUTES" name="SCRAPE_INTERVAL_MINUTES"
+              value="<%= settings.scraper.intervalMinutes %>" min="1" max="60">
+          </div>
+          <div class="form-group">
+            <label for="MIN_MATCH_SCORE">Min Match Score</label>
+            <input type="number" id="MIN_MATCH_SCORE" name="MIN_MATCH_SCORE"
+              value="<%= settings.scraper.minMatchScore %>" min="0" max="100">
+          </div>
+          <div class="form-group">
+            <label for="UI_PORT">UI Port</label>
+            <input type="number" id="UI_PORT" name="UI_PORT"
+              value="<%= settings.ui.port %>" min="1000" max="65535">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="checkbox-label">
+            <input type="checkbox" name="HEADLESS_MODE" value="true"
+              <%= settings.scraper.headless ? 'checked' : '' %>>
+            Run browser in headless mode <span class="hint">(uncheck to see the browser for debugging)</span>
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save Configuration</button>
+      </form>
+    </section>
+
+    <!-- Section 2: Resume Upload -->
+    <section class="setup-section" id="resume">
+      <h2>2. Upload Your Resume</h2>
+      <p class="section-desc">Upload your resume as a PDF. It will be analyzed by Claude AI to create a matching profile.</p>
+
+      <% if (hasResume) { %>
+        <div class="status-badge status-good">Resume uploaded</div>
+      <% } else { %>
+        <div class="status-badge status-missing">No resume uploaded yet</div>
+      <% } %>
+
+      <form method="POST" action="/setup/resume" enctype="multipart/form-data" class="setup-form">
+        <div class="form-group">
+          <label for="resume">Resume PDF</label>
+          <div class="file-upload">
+            <input type="file" id="resume" name="resume" accept=".pdf,application/pdf">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Upload Resume</button>
+      </form>
+
+      <% if (hasResume && hasSummary) { %>
+        <p class="hint" style="margin-top: 12px;">A cached AI profile summary exists. Uploading a new resume will regenerate it.</p>
+      <% } %>
+    </section>
+
+    <!-- Section 3: Profile Preferences -->
+    <section class="setup-section" id="profile">
+      <h2>3. Your Preferences</h2>
+      <p class="section-desc">Tell us about your job preferences so the AI can score matches more accurately.</p>
+
+      <form method="POST" action="/setup/profile" class="setup-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="remote_only"
+                <%= settings.profile.preferences.remote_only ? 'checked' : '' %>>
+              Remote only
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="willing_to_relocate"
+                <%= settings.profile.preferences.willing_to_relocate ? 'checked' : '' %>>
+              Willing to relocate
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="open_to_contract"
+                <%= settings.profile.additional_info.open_to_contract ? 'checked' : '' %>>
+              Open to contract work
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="visa_sponsorship_needed"
+                <%= settings.profile.additional_info.visa_sponsorship_needed ? 'checked' : '' %>>
+              Need visa sponsorship
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="target_seniority">Target Seniority Level <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="target_seniority" name="target_seniority"
+            value="<%= settings.profile.preferences.target_seniority.join(', ') %>"
+            placeholder="junior, mid, entry-level">
+          <span class="hint">Jobs above this level (senior, staff, lead, etc.) will be auto-rejected</span>
+        </div>
+
+        <div class="form-group">
+          <label for="exclude_title_keywords">Exclude Title Keywords <span class="hint">(comma-separated)</span></label>
+          <textarea id="exclude_title_keywords" name="exclude_title_keywords" rows="3"
+            placeholder="senior, staff, principal, lead, embedded, QA, test engineer, guidewire, SAP"><%= settings.profile.preferences.exclude_title_keywords.join(', ') %></textarea>
+          <span class="hint">Jobs with any of these words in the title are instantly rejected before the AI even sees them</span>
+        </div>
+
+        <hr class="form-divider">
+
+        <div class="form-group">
+          <label for="preferred_company_size">Preferred Company Size <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="preferred_company_size" name="preferred_company_size"
+            value="<%= settings.profile.preferences.preferred_company_size.join(', ') %>"
+            placeholder="startup, medium, large">
+        </div>
+
+        <div class="form-group">
+          <label for="preferred_tech_stack">Preferred Tech Stack <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="preferred_tech_stack" name="preferred_tech_stack"
+            value="<%= settings.profile.preferences.preferred_tech_stack.join(', ') %>"
+            placeholder="TypeScript, React, Node.js, Python">
+        </div>
+
+        <div class="form-group">
+          <label for="avoid_industries">Industries to Avoid <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="avoid_industries" name="avoid_industries"
+            value="<%= settings.profile.preferences.avoid_industries.join(', ') %>"
+            placeholder="finance, defense, gambling">
+        </div>
+
+        <div class="form-group">
+          <label for="key_interests">Key Interests <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="key_interests" name="key_interests"
+            value="<%= settings.profile.additional_info.key_interests.join(', ') %>"
+            placeholder="AI/ML, developer tools, automation">
+        </div>
+
+        <div class="form-group">
+          <label for="min_salary">Minimum Salary (USD)</label>
+          <input type="number" id="min_salary" name="min_salary"
+            value="<%= settings.profile.additional_info.min_salary || '' %>"
+            placeholder="120000" min="0" step="5000">
+        </div>
+
+        <div class="form-group">
+          <label for="dealbreakers">Dealbreakers <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="dealbreakers" name="dealbreakers"
+            value="<%= settings.profile.dealbreakers.join(', ') %>"
+            placeholder="5 days in office, no remote option, unpaid overtime">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save Preferences</button>
+      </form>
+    </section>
+
+    <!-- Section 4: Import / Export Settings -->
+    <section class="setup-section" id="import-export">
+      <h2>4. Import / Export Settings</h2>
+      <p class="section-desc">Export your current settings as a JSON file, or import a previously exported one. This includes search settings, scraper config, and profile preferences — everything except the API key.</p>
+
+      <div style="display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;">
+        <a href="/setup/export" class="btn btn-primary" style="text-decoration: none;">Export Settings JSON</a>
+
+        <form method="POST" action="/setup/import" enctype="multipart/form-data" class="setup-form" style="margin: 0; flex: 1; min-width: 250px;">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div class="file-upload" style="flex: 1;">
+              <input type="file" id="settings_file" name="settings_file" accept=".json,application/json">
+            </div>
+            <button type="submit" class="btn btn-primary">Import</button>
+          </div>
+        </form>
+      </div>
+
+      <p class="hint" style="margin-top: 12px;">Importing a settings file will replace all current settings (except your API key and resume).</p>
+    </section>
+  </div>
+</body>
+</html>

@@ -1,0 +1,39 @@
+{
+  "search": {
+    "keywords": [
+      "software engineer",
+      "frontend engineer",
+      "backend engineer",
+      "full stack developer"
+    ],
+    "locations": ["United States"],
+    "geoId": "103644278"
+  },
+  "scraper": {
+    "intervalMinutes": 2,
+    "headless": true,
+    "minMatchScore": 10,
+    "maxMinutesAgo": 10
+  },
+  "ui": {
+    "port": 3000
+  },
+  "profile": {
+    "preferences": {
+      "remote_only": false,
+      "willing_to_relocate": false,
+      "preferred_company_size": [],
+      "avoid_industries": [],
+      "preferred_tech_stack": [],
+      "target_seniority": [],
+      "exclude_title_keywords": []
+    },
+    "additional_info": {
+      "open_to_contract": false,
+      "visa_sponsorship_needed": false,
+      "min_salary": 0,
+      "key_interests": []
+    },
+    "dealbreakers": []
+  }
+}
