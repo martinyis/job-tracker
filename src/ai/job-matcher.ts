@@ -1,9 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { config } from '../config';
 import { logger } from '../logger';
 import { buildJobMatchPrompt, buildRelevanceFilterPrompt } from './prompts';
 
-/** Result returned from Claude's job matching */
+/** Result returned from the AI model's job matching */
 export interface MatchResult {
   score: number;
   reason: string;
@@ -18,17 +18,23 @@ export interface JobForMatching {
   description: string;
 }
 
+function createClient(): OpenAI {
+  return new OpenAI({
+    apiKey: config.nvidia.apiKey,
+    baseURL: config.nvidia.baseURL,
+  });
+}
+
 /**
- * Scores a single job against the candidate profile using Claude.
+ * Scores a single job against the candidate profile using Kimi K2.5.
  * Returns a structured match result with score, reason, and key matches.
  */
 export async function matchJob(
   profileSummary: string,
   job: JobForMatching,
 ): Promise<MatchResult> {
-  const client = new Anthropic({ apiKey: config.claude.apiKey });
+  const client = createClient();
 
-  // Truncate description to limit token usage
   const truncatedDescription =
     job.description.length > config.scraper.maxDescriptionLength
       ? job.description.slice(0, config.scraper.maxDescriptionLength) + '...'
@@ -40,21 +46,22 @@ export async function matchJob(
   });
 
   try {
-    const response = await client.messages.create({
-      model: config.claude.model,
-      max_tokens: config.claude.maxTokens,
-      temperature: config.claude.temperature,
+    const response = await client.chat.completions.create({
+      model: config.nvidia.model,
+      max_tokens: config.nvidia.maxTokens,
+      temperature: config.nvidia.temperature,
+      top_p: 1,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const textBlock = response.content.find((block) => block.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') {
-      throw new Error('Claude did not return a text response');
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('Model did not return a text response');
     }
 
-    const parsed = JSON.parse(textBlock.text.trim()) as MatchResult;
+    const cleaned = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const parsed = JSON.parse(cleaned) as MatchResult;
 
-    // Validate response shape
     if (
       typeof parsed.score !== 'number' ||
       typeof parsed.reason !== 'string' ||
@@ -63,7 +70,6 @@ export async function matchJob(
       throw new Error('Invalid match result structure');
     }
 
-    // Clamp score to 0-100
     parsed.score = Math.max(0, Math.min(100, Math.round(parsed.score)));
 
     logger.info('Job matched', {
@@ -191,7 +197,6 @@ export async function filterRelevantJobs(
 ): Promise<Set<string>> {
   if (jobs.length === 0) return new Set();
 
-  // Step 1: Hard keyword pre-filter
   const { passed: afterKeywords, rejected } = preFilterByKeywords(jobs);
   if (rejected.length > 0) {
     logger.info(`Keyword pre-filter: ${jobs.length} → ${afterKeywords.length} (rejected ${rejected.length})`, {
@@ -199,7 +204,6 @@ export async function filterRelevantJobs(
     });
   }
 
-  // Step 2: Deduplicate same title+company
   const { unique: afterDedup, duplicates } = deduplicateJobs(afterKeywords);
   if (duplicates > 0) {
     logger.info(`Dedup filter: ${afterKeywords.length} → ${afterDedup.length} (removed ${duplicates} duplicates)`);
@@ -207,8 +211,7 @@ export async function filterRelevantJobs(
 
   if (afterDedup.length === 0) return new Set();
 
-  // Step 3: AI relevance filter with strict rules
-  const client = new Anthropic({ apiKey: config.claude.apiKey });
+  const client = createClient();
 
   const filteringRules = {
     targetSeniority: config.profile.preferences.target_seniority,
@@ -222,19 +225,21 @@ export async function filterRelevantJobs(
     logger.info(`AI filtering ${afterDedup.length} jobs (strict mode)...`);
     const callStart = Date.now();
 
-    const response = await client.messages.create({
-      model: config.claude.model,
-      max_tokens: config.claude.maxTokens,
-      temperature: config.claude.temperature,
+    const response = await client.chat.completions.create({
+      model: config.nvidia.model,
+      max_tokens: config.nvidia.maxTokens,
+      temperature: config.nvidia.temperature,
+      top_p: 1,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const textBlock = response.content.find((block) => block.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') {
-      throw new Error('Claude did not return a text response');
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('Model did not return a text response');
     }
 
-    const parsed = JSON.parse(textBlock.text.trim()) as { relevantIds: string[] };
+    const cleaned = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const parsed = JSON.parse(cleaned) as { relevantIds: string[] };
 
     if (!Array.isArray(parsed.relevantIds)) {
       throw new Error('Invalid relevance filter response — expected { relevantIds: [...] }');
@@ -257,7 +262,6 @@ export async function filterRelevantJobs(
       jobCount: afterDedup.length,
       error: error instanceof Error ? error.message : String(error),
     });
-    // On failure, return the keyword-filtered set (don't lose pre-filter work)
     return new Set(afterDedup.map((j) => j.linkedinId));
   }
 }

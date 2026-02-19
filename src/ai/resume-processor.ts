@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 import pdfParse from 'pdf-parse';
@@ -23,7 +23,6 @@ async function extractPdfText(filePath: string): Promise<string> {
 export async function getOrCreateProfileSummary(): Promise<string> {
   const summaryPath = config.paths.profileSummary;
 
-  // Return cached summary if it exists
   if (fs.existsSync(summaryPath)) {
     logger.info('Using cached profile summary');
     return fs.readFileSync(summaryPath, 'utf-8');
@@ -31,25 +30,26 @@ export async function getOrCreateProfileSummary(): Promise<string> {
 
   logger.info('Generating profile summary from resume...');
 
-  // Read and parse resume PDF
   if (!fs.existsSync(config.paths.resume)) {
     throw new Error(`Resume not found at ${config.paths.resume}. Place your resume.pdf in the data/ directory.`);
   }
   const resumeText = await extractPdfText(config.paths.resume);
 
-  // Read profile context from settings.json
   const settings = loadSettings();
   const additionalContext = JSON.stringify(settings.profile, null, 2);
 
-  // Call Claude with extracted resume text
-  const client = new Anthropic({ apiKey: config.claude.apiKey });
+  const client = new OpenAI({
+    apiKey: config.nvidia.apiKey,
+    baseURL: config.nvidia.baseURL,
+  });
 
   const prompt = buildResumeSummaryPrompt(additionalContext);
 
-  const response = await client.messages.create({
-    model: config.claude.model,
-    max_tokens: 2000,
-    temperature: config.claude.temperature,
+  const response = await client.chat.completions.create({
+    model: config.nvidia.model,
+    max_tokens: 4096,
+    temperature: config.nvidia.temperature,
+    top_p: 1,
     messages: [
       {
         role: 'user',
@@ -58,29 +58,26 @@ export async function getOrCreateProfileSummary(): Promise<string> {
     ],
   });
 
-  // Extract text response
-  const textBlock = response.content.find((block) => block.type === 'text');
-  if (!textBlock || textBlock.type !== 'text') {
-    throw new Error('Claude did not return a text response for resume processing');
+  const content = response.choices[0]?.message?.content;
+  if (!content) {
+    throw new Error('Model did not return a text response for resume processing');
   }
 
-  const summary = textBlock.text.trim();
+  const cleaned = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
 
-  // Validate it's valid JSON
   try {
-    JSON.parse(summary);
+    JSON.parse(cleaned);
   } catch {
-    logger.error('Claude returned invalid JSON for profile summary', { response: summary });
-    throw new Error('Profile summary is not valid JSON. Please check Claude response.');
+    logger.error('Model returned invalid JSON for profile summary', { response: cleaned });
+    throw new Error('Profile summary is not valid JSON. Please check model response.');
   }
 
-  // Cache to disk
   const summaryDir = path.dirname(summaryPath);
   if (!fs.existsSync(summaryDir)) {
     fs.mkdirSync(summaryDir, { recursive: true });
   }
-  fs.writeFileSync(summaryPath, summary, 'utf-8');
+  fs.writeFileSync(summaryPath, cleaned, 'utf-8');
 
   logger.info('Profile summary generated and cached');
-  return summary;
+  return cleaned;
 }

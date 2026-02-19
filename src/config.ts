@@ -89,10 +89,11 @@ export function getSettingsPath(): string {
 function buildConfig() {
   const s = loadSettings();
   return {
-    claude: {
-      apiKey: process.env.ANTHROPIC_API_KEY || '',
-      model: 'claude-sonnet-4-20250514' as const,
-      maxTokens: 1000,
+    nvidia: {
+      apiKey: process.env.NVIDIA_API_KEY || '',
+      baseURL: 'https://integrate.api.nvidia.com/v1',
+      model: 'moonshotai/kimi-k2.5',
+      maxTokens: 4096,
       temperature: 0.3,
     },
     search: {
@@ -139,7 +140,7 @@ export const config = buildConfig();
 export function reloadConfig(): void {
   dotenv.config({ override: true });
   const fresh = buildConfig();
-  Object.assign(config.claude, fresh.claude);
+  Object.assign(config.nvidia, fresh.nvidia);
   Object.assign(config.search, fresh.search);
   Object.assign(config.scraper, fresh.scraper);
   Object.assign(config.ui, fresh.ui);
@@ -153,7 +154,7 @@ export function reloadConfig(): void {
 export function validateConfig(): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
-  if (!config.claude.apiKey) errors.push('ANTHROPIC_API_KEY is required');
+  if (!config.nvidia.apiKey) errors.push('NVIDIA_API_KEY is required');
   if (config.search.keywords.length === 0) errors.push('Job search keywords are required');
 
   return { valid: errors.length === 0, errors };

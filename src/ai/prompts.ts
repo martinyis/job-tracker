@@ -1,5 +1,5 @@
 /**
- * Prompt templates for Claude AI interactions.
+ * Prompt templates for AI interactions (NVIDIA Kimi K2.5).
  * Separated for easy tuning and maintenance.
  */
 

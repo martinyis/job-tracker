@@ -61,7 +61,7 @@ function readApiKey(): string {
     if (eqIndex === -1) continue;
     const key = trimmed.substring(0, eqIndex).trim();
     const val = trimmed.substring(eqIndex + 1).trim();
-    if (key === 'ANTHROPIC_API_KEY') return val;
+    if (key === 'NVIDIA_API_KEY') return val;
   }
   return '';
 }
@@ -70,7 +70,7 @@ function readApiKey(): string {
  * Writes the API key to .env file (keeping only secrets there).
  */
 function saveApiKey(apiKey: string): void {
-  const envContent = `# Claude API Key (only secret kept in .env)\nANTHROPIC_API_KEY=${apiKey}\n`;
+  const envContent = `# NVIDIA API Key (only secret kept in .env)\nNVIDIA_API_KEY=${apiKey}\n`;
   fs.writeFileSync(ENV_PATH, envContent, 'utf-8');
 }
 
@@ -89,7 +89,7 @@ function clearProfileSummary(): void {
  */
 export function isConfigured(): boolean {
   const apiKey = readApiKey();
-  if (!apiKey || apiKey === 'sk-ant-...') return false;
+  if (!apiKey || apiKey === 'nvapi-...') return false;
   const settingsPath = getSettingsPath();
   if (!fs.existsSync(settingsPath)) return false;
   try {
@@ -124,7 +124,7 @@ setupRouter.get('/setup', (req: Request, res: Response) => {
 setupRouter.post('/setup/config', (req: Request, res: Response) => {
   try {
     const {
-      ANTHROPIC_API_KEY,
+      NVIDIA_API_KEY,
       JOB_KEYWORDS,
       JOB_LOCATIONS,
       SCRAPE_INTERVAL_MINUTES,
@@ -134,7 +134,7 @@ setupRouter.post('/setup/config', (req: Request, res: Response) => {
     } = req.body;
 
     // Save API key to .env
-    saveApiKey(ANTHROPIC_API_KEY || '');
+    saveApiKey(NVIDIA_API_KEY || '');
 
     // Save search/scraper/UI settings to settings.json (preserve profile section)
     const current = loadSettings();

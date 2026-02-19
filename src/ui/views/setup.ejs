@@ -32,7 +32,7 @@
 
     <!-- Step indicators -->
     <div class="setup-steps">
-      <div class="step <%= apiKey && apiKey !== 'sk-ant-...' ? 'step-done' : '' %>">
+      <div class="step <%= apiKey && apiKey !== 'nvapi-...' ? 'step-done' : '' %>">
         <span class="step-num">1</span>
         <span class="step-label">API Key & Search</span>
       </div>
@@ -49,14 +49,14 @@
     <!-- Section 1: Configuration -->
     <section class="setup-section" id="config">
       <h2>1. API Key & Search Settings</h2>
-      <p class="section-desc">Enter your Anthropic API key and configure job search preferences. No LinkedIn login needed.</p>
+      <p class="section-desc">Enter your NVIDIA API key and configure job search preferences. No LinkedIn login needed.</p>
 
       <form method="POST" action="/setup/config" class="setup-form">
         <div class="form-group">
-          <label for="ANTHROPIC_API_KEY">Anthropic API Key</label>
-          <input type="password" id="ANTHROPIC_API_KEY" name="ANTHROPIC_API_KEY"
+          <label for="NVIDIA_API_KEY">NVIDIA API Key</label>
+          <input type="password" id="NVIDIA_API_KEY" name="NVIDIA_API_KEY"
             value="<%= apiKey || '' %>"
-            placeholder="sk-ant-...">
+            placeholder="nvapi-...">
         </div>
 
         <hr class="form-divider">
@@ -110,7 +110,7 @@
     <!-- Section 2: Resume Upload -->
     <section class="setup-section" id="resume">
       <h2>2. Upload Your Resume</h2>
-      <p class="section-desc">Upload your resume as a PDF. It will be analyzed by Claude AI to create a matching profile.</p>
+      <p class="section-desc">Upload your resume as a PDF. It will be analyzed by AI to create a matching profile.</p>
 
       <% if (hasResume) { %>
         <div class="status-badge status-good">Resume uploaded</div>
