@@ -222,18 +222,32 @@ export async function filterRelevantJobs(
   const prompt = buildRelevanceFilterPrompt(profileSummary, afterDedup, filteringRules);
 
   try {
-    logger.info(`AI filtering ${afterDedup.length} jobs (strict mode)...`);
+    // Log the jobs being sent to the AI for debugging
+    logger.info(`AI filtering ${afterDedup.length} jobs (strict mode)...`, {
+      jobsSentToAI: afterDedup.map(j => ({ id: j.linkedinId, title: j.title, company: j.company })),
+    });
     const callStart = Date.now();
 
-    const response = await client.chat.completions.create({
+    // Add a timeout to the AI call to prevent it from hanging forever
+    const AI_TIMEOUT_MS = 60_000; // 60 seconds max
+    const aiPromise = client.chat.completions.create({
       model: config.nvidia.model,
       max_tokens: config.nvidia.maxTokens,
       temperature: config.nvidia.temperature,
       top_p: 1,
       messages: [{ role: 'user', content: prompt }],
     });
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`AI filter timed out after ${AI_TIMEOUT_MS / 1000}s`)), AI_TIMEOUT_MS),
+    );
+    const response = await Promise.race([aiPromise, timeoutPromise]);
 
     const content = response.choices[0]?.message?.content;
+    logger.info('AI filter raw response', {
+      content: content?.slice(0, 500),
+      elapsed: `${Date.now() - callStart}ms`,
+    });
+
     if (!content) {
       throw new Error('Model did not return a text response');
     }
@@ -247,12 +261,16 @@ export async function filterRelevantJobs(
 
     const relevantSet = new Set(parsed.relevantIds);
 
+    // Log which jobs were kept vs rejected by AI
+    const keptJobs = afterDedup.filter(j => relevantSet.has(j.linkedinId));
+    const rejectedByAI = afterDedup.filter(j => !relevantSet.has(j.linkedinId));
     logger.info(`AI relevance filter complete`, {
       inputTotal: jobs.length,
       afterKeywordFilter: afterKeywords.length,
       afterDedup: afterDedup.length,
       aiKept: relevantSet.size,
-      aiRejected: afterDedup.length - relevantSet.size,
+      aiKeptTitles: keptJobs.map(j => j.title),
+      aiRejectedTitles: rejectedByAI.map(j => `${j.title} @ ${j.company}`),
       elapsed: `${Date.now() - callStart}ms`,
     });
 

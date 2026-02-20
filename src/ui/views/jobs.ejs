@@ -16,6 +16,11 @@
         <a href="/setup" class="nav-link">Settings</a>
       </div>
       <div class="nav-status">
+        <% if (linkedinSessionValid) { %>
+          <span class="badge badge-connected" title="Apply links will be extracted">LinkedIn: Connected</span>
+        <% } else { %>
+          <span class="badge badge-disconnected" title="Run npm run login to enable apply link extraction">LinkedIn: Not Connected</span>
+        <% } %>
         <% if (scraperState.isRunning) { %>
           <span class="badge badge-running">Scraper Running</span>
         <% } %>
@@ -107,7 +112,7 @@
               </td>
               <td class="actions">
                 <button class="btn-toggle" onclick="toggleDetail('<%= job.id %>')">Details</button>
-                <a href="<%= job.applyLink || job.link %>" target="_blank" rel="noopener noreferrer" class="btn-apply">Apply</a>
+                <a href="<%= job.applyLink %>" target="_blank" rel="noopener noreferrer" class="btn-apply">Apply</a>
               </td>
             </tr>
             <tr class="job-detail" id="detail-<%= job.id %>" style="display: none;">

@@ -12,7 +12,7 @@ if (!fs.existsSync(logsDir)) {
  * Logs to both console (colorized) and file (JSON format).
  */
 export const logger = winston.createLogger({
-  level: 'info',
+  level: process.env.LOG_LEVEL || 'debug',
   format: winston.format.combine(
     winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     winston.format.errors({ stack: true }),

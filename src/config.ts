@@ -120,6 +120,7 @@ function buildConfig() {
       resume: path.resolve('./data/resume.pdf'),
       settings: SETTINGS_PATH,
       profileSummary: path.resolve('./data/profile-summary.json'),
+      linkedinCookies: path.resolve('./data/linkedin-cookies.json'),
       logs: path.resolve('./logs/app.log'),
     },
     profile: s.profile,

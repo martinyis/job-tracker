@@ -127,6 +127,8 @@ header h1 {
 }
 .badge-running { background: #1a3a5c; color: #6ea8fe; }
 .badge-error { background: #3a1a1a; color: #ff6b6b; }
+.badge-connected { background: #1a3a2a; color: #6bff8a; }
+.badge-disconnected { background: #3a2a1a; color: #ffb86b; cursor: help; }
 
 /* ─── Stats Bar ───────────────────────────────────────── */
 .stats-bar {

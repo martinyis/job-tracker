@@ -70,9 +70,10 @@ async function runScrapeCycle(): Promise<void> {
     logger.info('Loading profile summary for AI filtering...');
     const profileSummary = await getOrCreateProfileSummary();
 
-    // Launch browser (no login needed — public pages)
+    // Launch browser (loads LinkedIn cookies if available)
     logger.info('Launching browser...');
     await scraper.launch();
+    logger.info('Browser launched', { authenticated: scraper.authenticated });
 
     const keywords = config.search.keywords;
     logger.info(`Scanning ${keywords.length} keywords`, { keywords });
@@ -85,19 +86,30 @@ async function runScrapeCycle(): Promise<void> {
       const allCards = await scraper.scanAllCards(keyword);
       totalScanned += allCards.length;
 
+      // Log all extracted card IDs and titles for traceability
+      if (allCards.length > 0) {
+        logger.info(`[${ki + 1}/${keywords.length}] Extracted cards`, {
+          cards: allCards.map(j => ({ id: j.linkedinId, title: j.title, company: j.company, minutesAgo: j.minutesAgo })),
+        });
+      }
+
       if (allCards.length === 0) {
         logger.info(`[${ki + 1}/${keywords.length}] No cards found for "${keyword}"`);
         continue;
       }
 
-      // STEP 2: Filter by time — keep only jobs posted within maxMinutesAgo
+      // STEP 2: Filter by time — keep only jobs posted within maxMinutesAgo.
+      // When authenticated, cards lack time info so minutesAgo defaults to 0 (trusting URL filter).
       const recentCards = allCards.filter(
         (job) => job.minutesAgo <= config.scraper.maxMinutesAgo,
       );
       totalAfterTimeFilter += recentCards.length;
 
+      const timeFilterNote = scraper.authenticated
+        ? " (authenticated: relying on URL time filter)"
+        : "";
       logger.info(
-        `[${ki + 1}/${keywords.length}] Time filter: ${allCards.length} → ${recentCards.length} (kept jobs ≤${config.scraper.maxMinutesAgo}m old)`,
+        `[${ki + 1}/${keywords.length}] Time filter: ${allCards.length} → ${recentCards.length} (kept jobs ≤${config.scraper.maxMinutesAgo}m old)${timeFilterNote}`,
       );
 
       if (recentCards.length === 0) {
@@ -128,18 +140,26 @@ async function runScrapeCycle(): Promise<void> {
         `[${ki + 1}/${keywords.length}] DB dedup: ${relevantCards.length} → ${newCards.length} new`,
       );
 
-      // STEP 5: Save new jobs (minimal data only)
+      // STEP 5: Extract apply links (if authenticated) and save new jobs
       for (const job of newCards) {
         try {
+          // Extract external apply link before saving.
+          // If external → use the external URL; if Easy Apply or extraction fails → use the LinkedIn job link.
+          const externalApplyLink = await scraper.extractApplyLink(job);
+          const applyLink = externalApplyLink || job.link;
+
           await saveJobMinimal({
             linkedinId: job.linkedinId,
             title: job.title,
             company: job.company,
             link: job.link,
+            applyLink,
             postedDate: job.postedDate,
           });
           totalSaved++;
-          logger.info(`  SAVED: "${job.title}" at ${job.company} (${job.minutesAgo}m ago)`);
+          logger.info(`  SAVED: "${job.title}" at ${job.company} (${job.minutesAgo}m ago)`, {
+            applyLink: applyLink ? 'extracted' : 'none',
+          });
         } catch (error) {
           logger.error(`  Failed to save "${job.title}"`, {
             linkedinId: job.linkedinId,
@@ -158,6 +178,7 @@ async function runScrapeCycle(): Promise<void> {
       totalAfterAiFilter,
       totalNew,
       totalSaved,
+      authenticated: scraper.authenticated,
       keywords: keywords.length,
       elapsed: `${elapsed}ms`,
       elapsedReadable: `${Math.round(elapsed / 1000)}s`,

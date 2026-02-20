@@ -8,5 +8,6 @@ data/resume.pdf
 data/profile-summary.json
 data/profile-context.json
 data/settings.json
+data/linkedin-cookies.json
 playwright/.auth/
 *.tsbuildinfo

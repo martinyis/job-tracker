@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "ui": "tsx src/ui/server.ts",
     "scrape": "tsx src/scheduler.ts",
+    "login": "tsx src/scraper/login-helper.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"

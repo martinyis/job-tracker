@@ -8,6 +8,7 @@ import {
   getScraperState,
   JobStatus,
 } from '../database/queries';
+import { loadCookies, areCookiesValid } from '../scraper/linkedin-auth';
 import { logger } from '../logger';
 
 export const router = Router();
@@ -29,6 +30,10 @@ router.get('/', async (req: Request, res: Response) => {
       getScraperState(),
     ]);
 
+    // Check LinkedIn session status
+    const cookies = loadCookies();
+    const linkedinSessionValid = cookies !== null && areCookiesValid(cookies);
+
     // Parse keyMatches JSON for each job
     const parsedJobs = jobs.map((job) => ({
       ...job,
@@ -45,6 +50,7 @@ router.get('/', async (req: Request, res: Response) => {
       jobs: parsedJobs,
       stats,
       scraperState,
+      linkedinSessionValid,
       currentFilter: validFilter || 'all',
       statuses: VALID_STATUSES,
     });

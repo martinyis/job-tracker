@@ -48,6 +48,7 @@ export interface JobMinimalInput {
   title: string;
   company: string;
   link: string;
+  applyLink?: string;
   postedDate: string;
 }
 
@@ -63,6 +64,7 @@ export async function saveJobMinimal(input: JobMinimalInput) {
         title: input.title,
         company: input.company,
         link: input.link,
+        applyLink: input.applyLink || '',
         postedDate: input.postedDate,
         status: 'new',
       },
@@ -93,6 +95,7 @@ export async function saveJobsMinimalBatch(inputs: JobMinimalInput[]) {
           title: input.title,
           company: input.company,
           link: input.link,
+          applyLink: input.applyLink || '',
           postedDate: input.postedDate,
           status: 'new',
         },
