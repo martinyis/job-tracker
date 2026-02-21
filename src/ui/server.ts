@@ -4,6 +4,7 @@ import { config } from '../config';
 import { logger } from '../logger';
 import { router } from './routes';
 import { setupRouter, isConfigured } from './setup-routes';
+import { profileRouter } from './profile-routes';
 
 /**
  * Creates and configures the Express UI server.
@@ -22,12 +23,13 @@ export function createServer(): express.Application {
   // Static files
   app.use('/static', express.static(path.join(__dirname, 'views')));
 
-  // Setup routes (always available)
+  // Setup & profile routes (always available)
   app.use('/', setupRouter);
+  app.use('/', profileRouter);
 
-  // Redirect to setup if not configured
-  app.use((req, res, next) => {
-    if (!isConfigured() && req.path === '/') {
+  // Redirect to setup if not configured (async check)
+  app.use(async (req, res, next) => {
+    if (req.path === '/' && !(await isConfigured())) {
       res.redirect('/setup');
       return;
     }

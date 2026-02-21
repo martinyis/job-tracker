@@ -9,11 +9,12 @@ An automated AI agent that continuously scrapes LinkedIn for job postings, uses 
 ## Development Commands
 
 ### Essential Commands
-- `npm run dev` - Start in development mode (runs both UI server and scraper scheduler)
+- `npm run dev` - Start the UI server (dashboard + settings) on port 3000
+- `npm run agent` - Start the scraper agent as a long-running process (or start/stop from the dashboard)
 - `npm run build` - Compile TypeScript to JavaScript
-- `npm start` - Run the compiled production build
-- `npm run ui` - Start only the web UI server (no scraper) on port 3000
-- `npm run scrape` - Run a single scrape cycle manually
+- `npm start` - Run the compiled production build (UI only)
+- `npm run ui` - Start only the web UI server on port 3000 (alias for dev)
+- `npm run scrape` - Run a single scrape cycle manually (for testing)
 
 ### Database Commands
 - `npm run prisma:generate` - Generate Prisma client after schema changes
@@ -22,12 +23,21 @@ An automated AI agent that continuously scrapes LinkedIn for job postings, uses 
 
 ## Architecture
 
-### Entry Point Flow
-The application starts via `src/index.ts`:
-1. Starts the UI server immediately (for setup access at `http://localhost:3000`)
-2. Checks if the app has been configured (requires settings.json and resume.pdf)
-3. Validates configuration (API key, search keywords)
-4. Starts the scraper scheduler if configured
+### Process Architecture
+The app runs as **two independent processes** that communicate via the SQLite database:
+
+**UI Process** (`src/index.ts` — `npm run dev`):
+- Express server on port 3000 (dashboard, settings, agent control)
+- Always runs independently — no scraper dependency
+- Can start/stop the scraper agent via `/agent/start` and `/agent/stop` routes
+
+**Scraper Agent Process** (`src/scraper-agent.ts` — `npm run agent`):
+- Long-running process that runs scrape cycles on an interval
+- Writes its PID to `ScraperState.pid` on startup
+- Handles SIGTERM gracefully: finishes current cycle, closes browser, clears PID, exits
+- Can be started from the dashboard UI or via `npm run agent` in terminal
+
+**Process management**: The UI spawns the agent as a detached child process (`child_process.spawn`). Agent liveness is checked by probing the stored PID with `process.kill(pid, 0)`. Stale PIDs from crashed processes are automatically cleaned up on dashboard load.
 
 ### Configuration System
 **Two-tier configuration**:
@@ -81,6 +91,7 @@ SQLite database via Prisma (`prisma/schema.prisma`):
 **ScraperState model** (singleton):
 - Tracks scraper health: lastRunAt, lastSuccessAt, errorCount
 - Prevents overlapping runs with `isRunning` flag
+- `pid` (nullable) — stores the agent process PID for liveness checks and stop signals
 - Auto-pauses after 5 consecutive errors for 30 minutes
 
 ### UI Layer
@@ -90,6 +101,8 @@ Express server (`src/ui/server.ts`) with EJS templates:
   - Saves to `data/settings.json`
   - Calls `reloadConfig()` to apply changes without restart
 - Dashboard routes (`src/ui/routes.ts`) - job review, status updates, notes
+- Agent control routes — `POST /agent/start`, `POST /agent/stop`, `GET /agent/status`
+- Agent process management logic in `src/ui/agent-manager.ts`
 
 ### Anti-Detection
 `src/scraper/anti-detection.ts` + `src/scraper/stealth-browser.ts`:
@@ -107,10 +120,10 @@ Winston logger (`src/logger.ts`):
 ## Key Implementation Details
 
 ### Configuration Hot-Reload
-When settings are saved via UI, the code calls `reloadConfig()` to update the running process without restart. The scheduler continues using old config until next cycle starts.
+When settings are saved via UI, the code calls `reloadConfig()` to update the UI process. The scraper agent (separate process) picks up config changes on its next cycle start by re-reading files from disk.
 
 ### Stuck State Recovery
-On startup, `resetScraperStateOnStartup()` clears any stuck `isRunning=true` state from previous crashes.
+On startup, `resetScraperStateOnStartup()` clears any stuck `isRunning=true` state and stale PIDs from previous crashes.
 
 ### Time Parsing
 `linkedin-scraper.ts:262-290` - Parses relative time text ("37 minutes ago", "1 hour ago") into numeric minutes for filtering.

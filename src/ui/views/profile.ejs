@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile - LinkedIn Job Tracker</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <!-- Navigation -->
+  <nav class="navbar">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">Job Tracker</a>
+      <div class="nav-links">
+        <a href="/" class="nav-link">Dashboard</a>
+        <a href="/profile" class="nav-link active">Profile</a>
+        <a href="/setup" class="nav-link">Settings</a>
+      </div>
+      <div class="nav-status">
+        <span class="nav-meta"></span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container">
+    <header>
+      <h1>Your Profile</h1>
+    </header>
+
+    <!-- Section Nav -->
+    <div class="profile-nav">
+      <a href="#personal" class="profile-nav-link">Personal</a>
+      <a href="#preferences" class="profile-nav-link">Preferences</a>
+      <a href="#experience" class="profile-nav-link">Experience</a>
+      <a href="#education" class="profile-nav-link">Education</a>
+      <a href="#skills" class="profile-nav-link">Skills</a>
+      <a href="#references" class="profile-nav-link">References</a>
+      <a href="#documents" class="profile-nav-link">Documents</a>
+      <a href="#application-info" class="profile-nav-link">Application Info</a>
+      <a href="#demographics" class="profile-nav-link">Demographics</a>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- PERSONAL INFO                                          -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="setup-section" id="personal">
+      <h2>Personal Information</h2>
+      <p class="section-desc">Your contact details and personal summary.</p>
+
+      <form method="POST" action="/profile/personal" class="setup-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="firstName">First Name</label>
+            <input type="text" id="firstName" name="firstName" value="<%= profile.firstName %>" placeholder="John">
+          </div>
+          <div class="form-group">
+            <label for="lastName">Last Name</label>
+            <input type="text" id="lastName" name="lastName" value="<%= profile.lastName %>" placeholder="Doe">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" value="<%= profile.email %>" placeholder="john@example.com">
+          </div>
+          <div class="form-group">
+            <label for="phone">Phone</label>
+            <input type="text" id="phone" name="phone" value="<%= profile.phone %>" placeholder="+1 (555) 123-4567">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="linkedinUrl">LinkedIn URL</label>
+            <input type="text" id="linkedinUrl" name="linkedinUrl" value="<%= profile.linkedinUrl %>" placeholder="https://linkedin.com/in/johndoe">
+          </div>
+          <div class="form-group">
+            <label for="website">Website / Portfolio</label>
+            <input type="text" id="website" name="website" value="<%= profile.website %>" placeholder="https://johndoe.dev">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="city">City</label>
+            <input type="text" id="city" name="city" value="<%= profile.city %>" placeholder="San Francisco">
+          </div>
+          <div class="form-group">
+            <label for="state">State</label>
+            <input type="text" id="state" name="state" value="<%= profile.state %>" placeholder="CA">
+          </div>
+          <div class="form-group">
+            <label for="country">Country</label>
+            <input type="text" id="country" name="country" value="<%= profile.country %>" placeholder="United States">
+          </div>
+          <div class="form-group">
+            <label for="zipCode">Zip Code</label>
+            <input type="text" id="zipCode" name="zipCode" value="<%= profile.zipCode %>" placeholder="94105">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="summary">Professional Summary</label>
+          <textarea id="summary" name="summary" rows="4" placeholder="Brief elevator pitch about yourself — what you do, what you're looking for..."><%= profile.summary %></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save Personal Info</button>
+      </form>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- PREFERENCES                                            -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="setup-section" id="preferences">
+      <h2>Job Preferences</h2>
+      <p class="section-desc">These preferences guide the AI when filtering jobs. Changes invalidate the cached profile summary.</p>
+
+      <form method="POST" action="/profile/preferences" class="setup-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="remoteOnly" <%= profile.remoteOnly ? 'checked' : '' %>>
+              Remote only
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="willingToRelocate" <%= profile.willingToRelocate ? 'checked' : '' %>>
+              Willing to relocate
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="openToContract" <%= profile.openToContract ? 'checked' : '' %>>
+              Open to contract work
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="visaSponsorshipNeeded" <%= profile.visaSponsorshipNeeded ? 'checked' : '' %>>
+              Need visa sponsorship
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="targetSeniority">Target Seniority Level <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="targetSeniority" name="targetSeniority"
+            value="<%= parseJsonArray(profile.targetSeniority).join(', ') %>"
+            placeholder="junior, mid, entry-level">
+          <span class="hint">Jobs above this level will be auto-rejected</span>
+        </div>
+
+        <div class="form-group">
+          <label for="excludeTitleKeywords">Exclude Title Keywords <span class="hint">(comma-separated)</span></label>
+          <textarea id="excludeTitleKeywords" name="excludeTitleKeywords" rows="3"
+            placeholder="senior, staff, principal, lead, embedded"><%= parseJsonArray(profile.excludeTitleKeywords).join(', ') %></textarea>
+          <span class="hint">Jobs with any of these words in the title are instantly rejected before the AI sees them</span>
+        </div>
+
+        <hr class="form-divider">
+
+        <div class="form-group">
+          <label for="preferredTechStack">Preferred Tech Stack <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="preferredTechStack" name="preferredTechStack"
+            value="<%= parseJsonArray(profile.preferredTechStack).join(', ') %>"
+            placeholder="TypeScript, React, Node.js, Python">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="preferredCompanySize">Preferred Company Size <span class="hint">(comma-separated)</span></label>
+            <input type="text" id="preferredCompanySize" name="preferredCompanySize"
+              value="<%= parseJsonArray(profile.preferredCompanySize).join(', ') %>"
+              placeholder="startup, medium, large">
+          </div>
+          <div class="form-group">
+            <label for="minSalary">Minimum Salary (USD)</label>
+            <input type="number" id="minSalary" name="minSalary"
+              value="<%= profile.minSalary || '' %>"
+              placeholder="120000" min="0" step="5000">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="avoidIndustries">Industries to Avoid <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="avoidIndustries" name="avoidIndustries"
+            value="<%= parseJsonArray(profile.avoidIndustries).join(', ') %>"
+            placeholder="finance, defense, gambling">
+        </div>
+
+        <div class="form-group">
+          <label for="keyInterests">Key Interests <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="keyInterests" name="keyInterests"
+            value="<%= parseJsonArray(profile.keyInterests).join(', ') %>"
+            placeholder="AI/ML, developer tools, automation">
+        </div>
+
+        <div class="form-group">
+          <label for="dealbreakers">Dealbreakers <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="dealbreakers" name="dealbreakers"
+            value="<%= parseJsonArray(profile.dealbreakers).join(', ') %>"
+            placeholder="5 days in office, no remote option">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save Preferences</button>
+      </form>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- WORK EXPERIENCE                                        -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="setup-section" id="experience">
+      <h2>Work Experience</h2>
+      <p class="section-desc">Your employment history. Used by the AI to build your profile summary.</p>
+
+      <% if (profile.workExperience.length > 0) { %>
+        <div class="profile-items">
+          <% profile.workExperience.forEach(function(exp) { %>
+            <div class="profile-item">
+              <div class="profile-item-header">
+                <div>
+                  <strong><%= exp.title %></strong> at <strong><%= exp.employer %></strong>
+                  <% if (exp.location) { %><span class="hint"> &mdash; <%= exp.location %></span><% } %>
+                </div>
+                <div class="profile-item-dates">
+                  <%= exp.startDate %> &ndash; <%= exp.isCurrent ? 'Present' : (exp.endDate || '?') %>
+                </div>
+              </div>
+              <% if (exp.description) { %>
+                <p class="profile-item-desc"><%= exp.description %></p>
+              <% } %>
+              <div class="profile-item-actions">
+                <button type="button" class="btn-toggle" onclick="toggleEdit('exp-<%= exp.id %>')">Edit</button>
+                <form method="POST" action="/profile/experience/<%= exp.id %>/delete" class="inline-form">
+                  <button type="submit" class="btn-delete" onclick="return confirm('Delete this entry?')">Delete</button>
+                </form>
+              </div>
+              <!-- Edit form (hidden) -->
+              <div class="profile-edit-form" id="exp-<%= exp.id %>" style="display: none;">
+                <form method="POST" action="/profile/experience/<%= exp.id %>" class="setup-form">
+                  <div class="form-row">
+                    <div class="form-group"><label>Title</label><input type="text" name="title" value="<%= exp.title %>" required></div>
+                    <div class="form-group"><label>Employer</label><input type="text" name="employer" value="<%= exp.employer %>" required></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group"><label>Location</label><input type="text" name="location" value="<%= exp.location %>"></div>
+                    <div class="form-group"><label>Start Date</label><input type="text" name="startDate" value="<%= exp.startDate %>" placeholder="2023-01" required></div>
+                    <div class="form-group"><label>End Date</label><input type="text" name="endDate" value="<%= exp.endDate || '' %>" placeholder="2024-06"></div>
+                  </div>
+                  <div class="form-group"><label class="checkbox-label"><input type="checkbox" name="isCurrent" <%= exp.isCurrent ? 'checked' : '' %>> Current position</label></div>
+                  <div class="form-group"><label>Description</label><textarea name="description" rows="3"><%= exp.description %></textarea></div>
+                  <button type="submit" class="btn btn-primary">Update</button>
+                </form>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+
+      <!-- Add new -->
+      <details class="profile-add-section">
+        <summary class="btn-add">+ Add Work Experience</summary>
+        <form method="POST" action="/profile/experience" class="setup-form" style="margin-top: 16px;">
+          <div class="form-row">
+            <div class="form-group"><label>Job Title</label><input type="text" name="title" placeholder="Software Engineer" required></div>
+            <div class="form-group"><label>Employer</label><input type="text" name="employer" placeholder="Acme Corp" required></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Location</label><input type="text" name="location" placeholder="San Francisco, CA"></div>
+            <div class="form-group"><label>Start Date</label><input type="text" name="startDate" placeholder="2023-01" required></div>
+            <div class="form-group"><label>End Date</label><input type="text" name="endDate" placeholder="2024-06 (or leave blank)"></div>
+          </div>
+          <div class="form-group"><label class="checkbox-label"><input type="checkbox" name="isCurrent"> Current position</label></div>
+          <div class="form-group"><label>Description</label><textarea name="description" rows="3" placeholder="Key responsibilities and achievements..."></textarea></div>
+          <button type="submit" class="btn btn-primary">Add Experience</button>
+        </form>
+      </details>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- EDUCATION                                              -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="setup-section" id="education">
+      <h2>Education</h2>
+      <p class="section-desc">Your educational background.</p>
+
+      <% if (profile.education.length > 0) { %>
+        <div class="profile-items">
+          <% profile.education.forEach(function(edu) { %>
+            <div class="profile-item">
+              <div class="profile-item-header">
+                <div>
+                  <strong><%= edu.degree %></strong><% if (edu.fieldOfStudy) { %> in <%= edu.fieldOfStudy %><% } %>
+                  <br><span class="hint"><%= edu.institution %></span>
+                </div>
+                <div class="profile-item-dates">
+                  <%= edu.startDate || '' %><% if (edu.startDate && edu.endDate) { %> &ndash; <% } %><%= edu.endDate || '' %>
+                  <% if (edu.gpa) { %><br><span class="hint">GPA: <%= edu.gpa %></span><% } %>
+                </div>
+              </div>
+              <div class="profile-item-actions">
+                <button type="button" class="btn-toggle" onclick="toggleEdit('edu-<%= edu.id %>')">Edit</button>
+                <form method="POST" action="/profile/education/<%= edu.id %>/delete" class="inline-form">
+                  <button type="submit" class="btn-delete" onclick="return confirm('Delete this entry?')">Delete</button>
+                </form>
+              </div>
+              <div class="profile-edit-form" id="edu-<%= edu.id %>" style="display: none;">
+                <form method="POST" action="/profile/education/<%= edu.id %>" class="setup-form">
+                  <div class="form-row">
+                    <div class="form-group"><label>Institution</label><input type="text" name="institution" value="<%= edu.institution %>" required></div>
+                    <div class="form-group"><label>Degree</label><input type="text" name="degree" value="<%= edu.degree %>" required></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group"><label>Field of Study</label><input type="text" name="fieldOfStudy" value="<%= edu.fieldOfStudy %>"></div>
+                    <div class="form-group"><label>GPA</label><input type="text" name="gpa" value="<%= edu.gpa || '' %>"></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group"><label>Start Date</label><input type="text" name="startDate" value="<%= edu.startDate || '' %>" placeholder="2019-09"></div>
+                    <div class="form-group"><label>End Date</label><input type="text" name="endDate" value="<%= edu.endDate || '' %>" placeholder="2023-06"></div>
+                  </div>
+                  <button type="submit" class="btn btn-primary">Update</button>
+                </form>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+
+      <details class="profile-add-section">
+        <summary class="btn-add">+ Add Education</summary>
+        <form method="POST" action="/profile/education" class="setup-form" style="margin-top: 16px;">
+          <div class="form-row">
+            <div class="form-group"><label>Institution</label><input type="text" name="institution" placeholder="Stanford University" required></div>
+            <div class="form-group"><label>Degree</label><input type="text" name="degree" placeholder="B.S." required></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Field of Study</label><input type="text" name="fieldOfStudy" placeholder="Computer Science"></div>
+            <div class="form-group"><label>GPA</label><input type="text" name="gpa" placeholder="3.8"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Start Date</label><input type="text" name="startDate" placeholder="2019-09"></div>
+            <div class="form-group"><label>End Date</label><input type="text" name="endDate" placeholder="2023-06"></div>
+          </div>
+          <button type="submit" class="btn btn-primary">Add Education</button>
+        </form>
+      </details>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- SKILLS                                                 -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="setup-section" id="skills">
+      <h2>Skills</h2>
+      <p class="section-desc">Technical and non-technical skills. These help the AI match you to relevant positions.</p>
+
+      <% if (profile.skills.length > 0) { %>
+        <div class="skill-tags">
+          <% profile.skills.forEach(function(skill) { %>
+            <div class="skill-tag">
+              <span class="skill-name"><%= skill.name %></span>
+              <% if (skill.category !== 'technical') { %><span class="skill-category"><%= skill.category %></span><% } %>
+              <% if (skill.yearsOfExperience) { %><span class="skill-years"><%= skill.yearsOfExperience %>y</span><% } %>
+              <form method="POST" action="/profile/skill/<%= skill.id %>/delete" class="inline-form">
+                <button type="submit" class="skill-remove" title="Remove">&times;</button>
+              </form>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+
+      <details class="profile-add-section">
+        <summary class="btn-add">+ Add Skill</summary>
+        <form method="POST" action="/profile/skill" class="setup-form" style="margin-top: 16px;">
+          <div class="form-row">
+            <div class="form-group"><label>Skill Name</label><input type="text" name="name" placeholder="React" required></div>
+            <div class="form-group">
+              <label>Category</label>
+              <select name="category" style="background: #0f0f0f; border: 1px solid #333; border-radius: 6px; color: #e0e0e0; padding: 10px 14px; font-size: 14px;">
+                <option value="technical">Technical</option>
+                <option value="language">Language</option>
+                <option value="soft-skill">Soft Skill</option>
+                <option value="tool">Tool</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group"><label>Years of Experience</label><input type="number" name="yearsOfExperience" placeholder="3" min="0" max="50"></div>
+            <div class="form-group">
+              <label>Proficiency</label>
+              <select name="proficiency" style="background: #0f0f0f; border: 1px solid #333; border-radius: 6px; color: #e0e0e0; padding: 10px 14px; font-size: 14px;">
+                <option value="">--</option>
+                <option value="beginner">Beginner</option>
+                <option value="intermediate">Intermediate</option>
+                <option value="advanced">Advanced</option>
+                <option value="expert">Expert</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Add Skill</button>
+        </form>
+      </details>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- REFERENCES                                             -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="setup-section" id="references">
+      <h2>References</h2>
+      <p class="section-desc">Professional references. Not shared with the AI — for your personal tracking only.</p>
+
+      <% if (profile.references.length > 0) { %>
+        <div class="profile-items">
+          <% profile.references.forEach(function(ref) { %>
+            <div class="profile-item">
+              <div class="profile-item-header">
+                <div>
+                  <strong><%= ref.name %></strong>
+                  <% if (ref.relationship) { %><span class="hint"> &mdash; <%= ref.relationship %></span><% } %>
+                  <% if (ref.company) { %><br><span class="hint"><%= ref.company %></span><% } %>
+                </div>
+                <div class="profile-item-dates">
+                  <% if (ref.email) { %><%= ref.email %><br><% } %>
+                  <% if (ref.phone) { %><%= ref.phone %><% } %>
+                </div>
+              </div>
+              <% if (ref.notes) { %>
+                <p class="profile-item-desc"><%= ref.notes %></p>
+              <% } %>
+              <div class="profile-item-actions">
+                <button type="button" class="btn-toggle" onclick="toggleEdit('ref-<%= ref.id %>')">Edit</button>
+                <form method="POST" action="/profile/reference/<%= ref.id %>/delete" class="inline-form">
+                  <button type="submit" class="btn-delete" onclick="return confirm('Delete this reference?')">Delete</button>
+                </form>
+              </div>
+              <div class="profile-edit-form" id="ref-<%= ref.id %>" style="display: none;">
+                <form method="POST" action="/profile/reference/<%= ref.id %>" class="setup-form">
+                  <div class="form-row">
+                    <div class="form-group"><label>Name</label><input type="text" name="name" value="<%= ref.name %>" required></div>
+                    <div class="form-group"><label>Relationship</label><input type="text" name="relationship" value="<%= ref.relationship %>" placeholder="Former manager"></div>
+                  </div>
+                  <div class="form-row">
+                    <div class="form-group"><label>Company</label><input type="text" name="company" value="<%= ref.company %>"></div>
+                    <div class="form-group"><label>Email</label><input type="email" name="email" value="<%= ref.email %>"></div>
+                    <div class="form-group"><label>Phone</label><input type="text" name="phone" value="<%= ref.phone %>"></div>
+                  </div>
+                  <div class="form-group"><label>Notes</label><textarea name="notes" rows="2"><%= ref.notes %></textarea></div>
+                  <button type="submit" class="btn btn-primary">Update</button>
+                </form>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+
+      <details class="profile-add-section">
+        <summary class="btn-add">+ Add Reference</summary>
+        <form method="POST" action="/profile/reference" class="setup-form" style="margin-top: 16px;">
+          <div class="form-row">
+            <div class="form-group"><label>Name</label><input type="text" name="name" placeholder="Jane Smith" required></div>
+            <div class="form-group"><label>Relationship</label><input type="text" name="relationship" placeholder="Former manager"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Company</label><input type="text" name="company" placeholder="Acme Corp"></div>
+            <div class="form-group"><label>Email</label><input type="email" name="email" placeholder="jane@example.com"></div>
+            <div class="form-group"><label>Phone</label><input type="text" name="phone" placeholder="+1 (555) 987-6543"></div>
+          </div>
+          <div class="form-group"><label>Notes</label><textarea name="notes" rows="2" placeholder="How you worked together..."></textarea></div>
+          <button type="submit" class="btn btn-primary">Add Reference</button>
+        </form>
+      </details>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- DOCUMENTS                                              -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="setup-section" id="documents">
+      <h2>Documents</h2>
+      <p class="section-desc">Upload your resume and other documents. The primary resume is used by the AI for profile matching.</p>
+
+      <% if (profile.documents.length > 0) { %>
+        <div class="doc-list">
+          <% profile.documents.forEach(function(doc) { %>
+            <div class="doc-item">
+              <div class="doc-info">
+                <span class="doc-icon"><%= doc.type === 'resume' ? '&#128196;' : '&#128203;' %></span>
+                <div>
+                  <strong><%= doc.filename %></strong>
+                  <% if (doc.isPrimary) { %><span class="badge badge-connected">Primary</span><% } %>
+                  <br><span class="hint"><%= doc.type %> &middot; <%= (doc.sizeBytes / 1024).toFixed(0) %> KB &middot; <%= new Date(doc.uploadedAt).toLocaleDateString() %></span>
+                </div>
+              </div>
+              <div class="doc-actions">
+                <% if (!doc.isPrimary && doc.type === 'resume') { %>
+                  <form method="POST" action="/profile/document/<%= doc.id %>/primary" class="inline-form">
+                    <button type="submit" class="btn-toggle">Set Primary</button>
+                  </form>
+                <% } %>
+                <form method="POST" action="/profile/document/<%= doc.id %>/delete" class="inline-form">
+                  <button type="submit" class="btn-delete" onclick="return confirm('Delete this document?')">Delete</button>
+                </form>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      <% } else { %>
+        <div class="empty-hint">No documents uploaded yet.</div>
+      <% } %>
+
+      <details class="profile-add-section">
+        <summary class="btn-add">+ Upload Document</summary>
+        <form method="POST" action="/profile/document" enctype="multipart/form-data" class="setup-form" style="margin-top: 16px;">
+          <div class="form-row">
+            <div class="form-group">
+              <label>Document Type</label>
+              <select name="docType" style="background: #0f0f0f; border: 1px solid #333; border-radius: 6px; color: #e0e0e0; padding: 10px 14px; font-size: 14px;">
+                <option value="resume">Resume</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label" style="margin-top: 28px;">
+                <input type="checkbox" name="isPrimary" checked>
+                Set as primary
+              </label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>File (PDF or Word)</label>
+            <div class="file-upload">
+              <input type="file" name="document" accept=".pdf,.doc,.docx" required>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary">Upload</button>
+        </form>
+      </details>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- APPLICATION INFO                                       -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="setup-section" id="application-info">
+      <h2>Application Information</h2>
+      <p class="section-desc">Additional fields commonly requested on job applications. These are used by the auto-apply agent to fill forms.</p>
+
+      <form method="POST" action="/profile/application-info" class="setup-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="preferredName">Preferred Name</label>
+            <input type="text" id="preferredName" name="preferredName" value="<%= profile.preferredName %>" placeholder="Name to use on applications if different from legal name">
+          </div>
+          <div class="form-group">
+            <label for="pronouns">Pronouns</label>
+            <input type="text" id="pronouns" name="pronouns" value="<%= profile.pronouns %>" placeholder="e.g. he/him, she/her, they/them">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="dateOfBirth">Date of Birth</label>
+            <input type="date" id="dateOfBirth" name="dateOfBirth" value="<%= profile.dateOfBirth %>">
+            <span class="hint">Used only for age verification questions. Stored locally, never sent to AI.</span>
+          </div>
+          <div class="form-group">
+            <label for="yearsOfExperience">Total Years of Experience</label>
+            <input type="number" id="yearsOfExperience" name="yearsOfExperience" value="<%= profile.yearsOfExperience || '' %>" placeholder="5" min="0" max="50">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="desiredSalary">Desired Salary</label>
+            <input type="text" id="desiredSalary" name="desiredSalary" value="<%= profile.desiredSalary %>" placeholder="120000, 110k-130k, or negotiable">
+            <span class="hint">What the agent puts in "desired compensation" fields</span>
+          </div>
+          <div class="form-group">
+            <label for="availableStartDate">Available Start Date</label>
+            <input type="text" id="availableStartDate" name="availableStartDate" value="<%= profile.availableStartDate %>" placeholder="immediately, 2 weeks, 2026-03-15">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="coverLetterNotes">Cover Letter Notes</label>
+          <textarea id="coverLetterNotes" name="coverLetterNotes" rows="4" placeholder="Key talking points for AI-generated cover letters. E.g. 'Always mention my experience leading distributed teams' or 'Emphasize my transition from backend to full-stack.'"><%= profile.coverLetterNotes %></textarea>
+          <span class="hint">Guidance for the AI when generating cover letters — not a cover letter itself</span>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save Application Info</button>
+      </form>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <!-- DEMOGRAPHIC & LEGAL ANSWERS                            -->
+    <!-- ═══════════════════════════════════════════════════════ -->
+    <section class="setup-section demographic-section" id="demographics">
+      <h2>Demographic & Legal Answers</h2>
+      <p class="section-desc">Your answers to common EEO compliance and legal questions on job applications. All fields are voluntary.</p>
+
+      <div class="demographic-note">
+        These answers are stored locally only and used by the auto-apply agent to fill application forms. They are never shared with the AI model. You can leave any field blank to skip it.
+      </div>
+
+      <form method="POST" action="/profile/demographics" class="setup-form">
+        <% demographicCategories.forEach(function(cat) { %>
+          <% var stored = demographicMap[cat.id] || { answer: '', notes: '' }; %>
+          <% var isCustom = stored.answer && !cat.options.includes(stored.answer); %>
+          <div class="demographic-item">
+            <label for="demographic_<%= cat.id %>"><%= cat.label %></label>
+            <span class="demographic-description"><%= cat.description %></span>
+            <div class="form-row">
+              <div class="form-group" style="flex: 2;">
+                <select id="demographic_<%= cat.id %>" name="demographic_<%= cat.id %>" class="select-input"
+                  onchange="toggleCustom('<%= cat.id %>', this.value)">
+                  <option value="">-- Select --</option>
+                  <% cat.options.forEach(function(opt) { %>
+                    <option value="<%= opt %>" <%= stored.answer === opt ? 'selected' : '' %>><%= opt %></option>
+                  <% }); %>
+                  <option value="__custom__" <%= isCustom ? 'selected' : '' %>>Custom answer...</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex: 2;">
+                <input type="text" name="demographic_<%= cat.id %>_custom"
+                  id="custom_<%= cat.id %>"
+                  value="<%= isCustom ? stored.answer : '' %>"
+                  placeholder="Type your answer..."
+                  style="<%= isCustom ? '' : 'display: none;' %>">
+              </div>
+            </div>
+            <div class="form-group">
+              <input type="text" name="demographic_<%= cat.id %>_notes"
+                value="<%= stored.notes %>"
+                placeholder="Notes for AI (optional — e.g. additional context for unusual form phrasing)"
+                class="demographic-notes-input">
+            </div>
+          </div>
+        <% }); %>
+
+        <button type="submit" class="btn btn-primary">Save Demographic Answers</button>
+      </form>
+    </section>
+
+    <% if (profile.profileSummaryCache) { %>
+      <section class="setup-section" id="ai-cache">
+        <h2>AI Profile Summary Cache</h2>
+        <p class="section-desc">
+          This is the AI-generated summary used for job matching.
+          Cached on: <%= profile.profileSummaryCachedAt ? new Date(profile.profileSummaryCachedAt).toLocaleString() : 'Unknown' %>
+        </p>
+        <pre class="log-content" style="max-height: 300px; overflow-y: auto; border: 1px solid #222; border-radius: 6px;"><%= profile.profileSummaryCache.substring(0, 2000) %><% if (profile.profileSummaryCache.length > 2000) { %>...<% } %></pre>
+      </section>
+    <% } %>
+  </div>
+
+  <script>
+    function toggleEdit(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.display = el.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+
+    function toggleCustom(categoryId, value) {
+      const customInput = document.getElementById('custom_' + categoryId);
+      if (customInput) {
+        customInput.style.display = value === '__custom__' ? '' : 'none';
+        if (value !== '__custom__') customInput.value = '';
+      }
+    }
+  </script>
+</body>
+</html>

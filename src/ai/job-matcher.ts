@@ -130,15 +130,21 @@ export interface JobForFiltering {
   company: string;
 }
 
+/** Profile preferences passed into filtering functions */
+export interface ProfilePreferences {
+  excludeTitleKeywords: string[];
+  targetSeniority: string[];
+  preferredTechStack: string[];
+}
+
 /**
  * Hard pre-filter: instantly rejects jobs whose titles contain excluded keywords.
  * Runs BEFORE the AI call — zero cost, zero latency.
  */
-function preFilterByKeywords(jobs: JobForFiltering[]): {
+function preFilterByKeywords(jobs: JobForFiltering[], excludeKeywords: string[]): {
   passed: JobForFiltering[];
   rejected: JobForFiltering[];
 } {
-  const excludeKeywords = config.profile.preferences.exclude_title_keywords;
   if (excludeKeywords.length === 0) return { passed: jobs, rejected: [] };
 
   const lowerKeywords = excludeKeywords.map((k) => k.toLowerCase());
@@ -194,10 +200,11 @@ function deduplicateJobs(jobs: JobForFiltering[]): {
 export async function filterRelevantJobs(
   profileSummary: string,
   jobs: JobForFiltering[],
+  preferences: ProfilePreferences,
 ): Promise<Set<string>> {
   if (jobs.length === 0) return new Set();
 
-  const { passed: afterKeywords, rejected } = preFilterByKeywords(jobs);
+  const { passed: afterKeywords, rejected } = preFilterByKeywords(jobs, preferences.excludeTitleKeywords);
   if (rejected.length > 0) {
     logger.info(`Keyword pre-filter: ${jobs.length} → ${afterKeywords.length} (rejected ${rejected.length})`, {
       rejectedTitles: rejected.map((j) => j.title),
@@ -214,9 +221,9 @@ export async function filterRelevantJobs(
   const client = createClient();
 
   const filteringRules = {
-    targetSeniority: config.profile.preferences.target_seniority,
-    excludeTitleKeywords: config.profile.preferences.exclude_title_keywords,
-    preferredTechStack: config.profile.preferences.preferred_tech_stack,
+    targetSeniority: preferences.targetSeniority,
+    excludeTitleKeywords: preferences.excludeTitleKeywords,
+    preferredTechStack: preferences.preferredTechStack,
   };
 
   const prompt = buildRelevanceFilterPrompt(profileSummary, afterDedup, filteringRules);

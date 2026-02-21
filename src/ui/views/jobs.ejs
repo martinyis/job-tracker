@@ -13,6 +13,7 @@
       <a href="/" class="nav-brand">Job Tracker</a>
       <div class="nav-links">
         <a href="/" class="nav-link active">Dashboard</a>
+        <a href="/profile" class="nav-link">Profile</a>
         <a href="/setup" class="nav-link">Settings</a>
       </div>
       <div class="nav-status">
@@ -21,21 +22,98 @@
         <% } else { %>
           <span class="badge badge-disconnected" title="Run npm run login to enable apply link extraction">LinkedIn: Not Connected</span>
         <% } %>
-        <% if (scraperState.isRunning) { %>
-          <span class="badge badge-running">Scraper Running</span>
-        <% } %>
-        <% if (scraperState.errorCount > 0) { %>
-          <span class="badge badge-error">Errors: <%= scraperState.errorCount %></span>
-        <% } %>
-        <span class="nav-meta">Last run: <%= scraperState.lastRunAt ? new Date(scraperState.lastRunAt).toLocaleString() : 'Never' %></span>
       </div>
     </div>
   </nav>
 
   <div class="container">
+    <% if (agentError) { %>
+      <div class="agent-error"><%= agentError %></div>
+    <% } %>
+
     <header>
       <h1>Dashboard</h1>
     </header>
+
+    <!-- Scraper Status Panel -->
+    <div class="scraper-panel" id="scraper-panel">
+      <div class="scraper-panel-header">
+        <div class="scraper-panel-title">
+          <span class="scraper-dot <%= agentStatus.running ? 'scraper-dot-running' : '' %>" id="scraper-dot"></span>
+          <span id="scraper-status-text"><%= agentStatus.running ? 'Scraper Running' : 'Scraper Stopped' %></span>
+        </div>
+        <div class="scraper-panel-actions" id="scraper-actions">
+          <% if (agentStatus.running) { %>
+            <form method="POST" action="/agent/stop" class="inline-nav-form">
+              <button type="submit" class="btn-agent-stop">Stop Scraper</button>
+            </form>
+          <% } else { %>
+            <form method="POST" action="/agent/start" class="inline-nav-form">
+              <button type="submit" class="btn-agent-start">Start Scraper</button>
+            </form>
+          <% } %>
+        </div>
+      </div>
+      <div class="scraper-panel-details">
+        <div class="scraper-detail">
+          <span class="scraper-detail-label">Cycle</span>
+          <span class="scraper-detail-value" id="scraper-cycle">
+            <% if (!agentStatus.running) { %>
+              --
+            <% } else if (agentStatus.isRunningCycle) { %>
+              <span class="badge badge-running">Active</span>
+            <% } else { %>
+              <span class="badge badge-agent-stopped">Idle</span>
+            <% } %>
+          </span>
+        </div>
+        <div class="scraper-detail">
+          <span class="scraper-detail-label">Last Run</span>
+          <span class="scraper-detail-value" id="scraper-last-run"><%= scraperState.lastRunAt ? new Date(scraperState.lastRunAt).toLocaleString() : 'Never' %></span>
+        </div>
+        <div class="scraper-detail">
+          <span class="scraper-detail-label">Last Success</span>
+          <span class="scraper-detail-value" id="scraper-last-success"><%= scraperState.lastSuccessAt ? new Date(scraperState.lastSuccessAt).toLocaleString() : 'Never' %></span>
+        </div>
+        <div class="scraper-detail">
+          <span class="scraper-detail-label">Errors</span>
+          <span class="scraper-detail-value" id="scraper-errors">
+            <% if (agentStatus.errorCount === 0) { %>
+              0
+            <% } else if (agentStatus.errorCount >= 5) { %>
+              <span class="badge badge-error"><%= agentStatus.errorCount %> (Paused)</span>
+            <% } else { %>
+              <span class="badge badge-error"><%= agentStatus.errorCount %></span>
+            <% } %>
+          </span>
+        </div>
+        <% if (agentStatus.running && agentStatus.pid) { %>
+          <div class="scraper-detail" id="scraper-pid-detail">
+            <span class="scraper-detail-label">PID</span>
+            <span class="scraper-detail-value" id="scraper-pid"><%= agentStatus.pid %></span>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- Log Viewer -->
+      <div class="log-viewer">
+        <div class="log-viewer-header">
+          <button class="log-viewer-toggle" id="log-toggle" type="button">
+            <span class="log-toggle-arrow" id="log-arrow">&#9654;</span>
+            Agent Logs
+          </button>
+          <div class="log-viewer-controls" id="log-controls" style="display: none;">
+            <label class="checkbox-label log-autoscroll-label">
+              <input type="checkbox" id="log-autoscroll" checked> Auto-scroll
+            </label>
+            <button type="button" class="btn-log-clear" id="log-clear">Clear</button>
+          </div>
+        </div>
+        <div class="log-viewer-body" id="log-body" style="display: none;">
+          <pre class="log-content" id="log-content">Loading logs...</pre>
+        </div>
+      </div>
+    </div>
 
     <!-- Stats -->
     <div class="stats-bar">
@@ -169,6 +247,139 @@
         row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
       }
     }
+
+    // Auto-refresh scraper status every 5 seconds
+    (function() {
+      let prevRunning = <%= agentStatus.running ? 'true' : 'false' %>;
+
+      async function refreshStatus() {
+        try {
+          const res = await fetch('/agent/status');
+          if (!res.ok) return;
+          const s = await res.json();
+
+          // Status text + dot
+          const dot = document.getElementById('scraper-dot');
+          const text = document.getElementById('scraper-status-text');
+          if (s.running) {
+            dot.classList.add('scraper-dot-running');
+            text.textContent = 'Scraper Running';
+          } else {
+            dot.classList.remove('scraper-dot-running');
+            text.textContent = 'Scraper Stopped';
+          }
+
+          // Actions (start/stop button)
+          const actions = document.getElementById('scraper-actions');
+          if (s.running) {
+            actions.innerHTML = '<form method="POST" action="/agent/stop" class="inline-nav-form"><button type="submit" class="btn-agent-stop">Stop Scraper</button></form>';
+          } else {
+            actions.innerHTML = '<form method="POST" action="/agent/start" class="inline-nav-form"><button type="submit" class="btn-agent-start">Start Scraper</button></form>';
+          }
+
+          // Cycle status
+          const cycle = document.getElementById('scraper-cycle');
+          if (!s.running) {
+            cycle.innerHTML = '--';
+          } else if (s.isRunningCycle) {
+            cycle.innerHTML = '<span class="badge badge-running">Active</span>';
+          } else {
+            cycle.innerHTML = '<span class="badge badge-agent-stopped">Idle</span>';
+          }
+
+          // Last run
+          document.getElementById('scraper-last-run').textContent =
+            s.lastRunAt ? new Date(s.lastRunAt).toLocaleString() : 'Never';
+
+          // Last success
+          document.getElementById('scraper-last-success').textContent =
+            s.lastSuccessAt ? new Date(s.lastSuccessAt).toLocaleString() : 'Never';
+
+          // Errors
+          const errEl = document.getElementById('scraper-errors');
+          if (s.errorCount === 0) {
+            errEl.innerHTML = '0';
+          } else if (s.errorCount >= 5) {
+            errEl.innerHTML = '<span class="badge badge-error">' + s.errorCount + ' (Paused)</span>';
+          } else {
+            errEl.innerHTML = '<span class="badge badge-error">' + s.errorCount + '</span>';
+          }
+
+          // PID
+          let pidDetail = document.getElementById('scraper-pid-detail');
+          if (s.running && s.pid) {
+            if (!pidDetail) {
+              const details = document.querySelector('.scraper-panel-details');
+              pidDetail = document.createElement('div');
+              pidDetail.className = 'scraper-detail';
+              pidDetail.id = 'scraper-pid-detail';
+              pidDetail.innerHTML = '<span class="scraper-detail-label">PID</span><span class="scraper-detail-value" id="scraper-pid">' + s.pid + '</span>';
+              details.appendChild(pidDetail);
+            } else {
+              document.getElementById('scraper-pid').textContent = s.pid;
+            }
+          } else if (pidDetail) {
+            pidDetail.remove();
+          }
+
+          prevRunning = s.running;
+        } catch (e) {
+          // Silently ignore fetch errors
+        }
+      }
+
+      setInterval(refreshStatus, 5000);
+    })();
+
+    // Log viewer
+    (function() {
+      const toggle = document.getElementById('log-toggle');
+      const arrow = document.getElementById('log-arrow');
+      const body = document.getElementById('log-body');
+      const controls = document.getElementById('log-controls');
+      const content = document.getElementById('log-content');
+      const autoScroll = document.getElementById('log-autoscroll');
+      const clearBtn = document.getElementById('log-clear');
+      let open = false;
+      let pollId = null;
+
+      toggle.addEventListener('click', function() {
+        open = !open;
+        body.style.display = open ? 'block' : 'none';
+        controls.style.display = open ? 'flex' : 'none';
+        arrow.innerHTML = open ? '&#9660;' : '&#9654;';
+        if (open) {
+          fetchLogs();
+          pollId = setInterval(fetchLogs, 3000);
+        } else if (pollId) {
+          clearInterval(pollId);
+          pollId = null;
+        }
+      });
+
+      clearBtn.addEventListener('click', function() {
+        content.textContent = '';
+      });
+
+      async function fetchLogs() {
+        try {
+          const res = await fetch('/agent/logs?lines=150');
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.lines.length === 0) {
+            content.textContent = 'No logs yet.';
+            return;
+          }
+          const text = (data.truncated ? '--- older logs truncated ---\n' : '') + data.lines.join('\n');
+          content.textContent = text;
+          if (autoScroll.checked) {
+            body.scrollTop = body.scrollHeight;
+          }
+        } catch (e) {
+          // Silently ignore
+        }
+      }
+    })();
   </script>
 </body>
 </html>

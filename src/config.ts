@@ -1,19 +1,27 @@
 import dotenv from 'dotenv';
 import path from 'path';
-import fs from 'fs';
+import { getOrCreateSettings } from './database/settings-queries';
 
 dotenv.config();
 
-const DATA_DIR = path.resolve('./data');
-const SETTINGS_PATH = path.join(DATA_DIR, 'settings.json');
-
 /**
- * Default settings used when settings.json doesn't exist yet.
+ * Application configuration.
+ * Secrets (API key) come from .env.
+ * Everything else comes from AppSettings in the database.
+ *
+ * Call `initConfig()` once at startup before accessing `config`.
  */
-const DEFAULTS = {
+export const config = {
+  nvidia: {
+    apiKey: process.env.NVIDIA_API_KEY || '',
+    baseURL: 'https://integrate.api.nvidia.com/v1',
+    model: 'moonshotai/kimi-k2.5',
+    maxTokens: 4096,
+    temperature: 0.3,
+  },
   search: {
     keywords: [] as string[],
-    locations: ['United States'],
+    locations: ['United States'] as string[],
     geoId: '103644278',
   },
   scraper: {
@@ -21,132 +29,50 @@ const DEFAULTS = {
     headless: true,
     minMatchScore: 50,
     maxMinutesAgo: 10,
+    maxConsecutiveErrors: 5,
+    errorPauseMinutes: 30,
+    navigationDelay: { min: 2000, max: 5000 },
+    clickDelay: { min: 1000, max: 3000 },
+    maxConcurrentMatches: 5,
+    maxDescriptionLength: 2000,
   },
   ui: {
     port: 3000,
   },
-  profile: {
-    preferences: {
-      remote_only: false,
-      willing_to_relocate: false,
-      preferred_company_size: [] as string[],
-      avoid_industries: [] as string[],
-      preferred_tech_stack: [] as string[],
-      target_seniority: [] as string[],
-      exclude_title_keywords: [] as string[],
-    },
-    additional_info: {
-      open_to_contract: false,
-      visa_sponsorship_needed: false,
-      min_salary: 0,
-      key_interests: [] as string[],
-    },
-    dealbreakers: [] as string[],
+  paths: {
+    linkedinCookies: path.resolve('./data/linkedin-cookies.json'),
+    logs: path.resolve('./logs/app.log'),
   },
 };
 
-export type Settings = typeof DEFAULTS;
-
 /**
- * Reads settings.json from disk. Returns defaults if file doesn't exist.
+ * Initializes configuration from the database.
+ * Must be called once at startup before the app uses `config`.
  */
-export function loadSettings(): Settings {
-  if (!fs.existsSync(SETTINGS_PATH)) return structuredClone(DEFAULTS);
-  try {
-    const raw = JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf-8'));
-    return {
-      search: { ...DEFAULTS.search, ...raw.search },
-      scraper: { ...DEFAULTS.scraper, ...raw.scraper },
-      ui: { ...DEFAULTS.ui, ...raw.ui },
-      profile: {
-        preferences: { ...DEFAULTS.profile.preferences, ...raw.profile?.preferences },
-        additional_info: { ...DEFAULTS.profile.additional_info, ...raw.profile?.additional_info },
-        dealbreakers: raw.profile?.dealbreakers ?? DEFAULTS.profile.dealbreakers,
-      },
-    };
-  } catch {
-    return structuredClone(DEFAULTS);
-  }
-}
-
-/**
- * Writes settings to disk.
- */
-export function saveSettings(settings: Settings): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings, null, 2), 'utf-8');
-}
-
-/**
- * Returns the path to settings.json.
- */
-export function getSettingsPath(): string {
-  return SETTINGS_PATH;
-}
-
-function buildConfig() {
-  const s = loadSettings();
-  return {
-    nvidia: {
-      apiKey: process.env.NVIDIA_API_KEY || '',
-      baseURL: 'https://integrate.api.nvidia.com/v1',
-      model: 'moonshotai/kimi-k2.5',
-      maxTokens: 4096,
-      temperature: 0.3,
-    },
-    search: {
-      keywords: s.search.keywords,
-      locations: s.search.locations,
-      geoId: s.search.geoId,
-    },
-    scraper: {
-      intervalMinutes: s.scraper.intervalMinutes,
-      headless: s.scraper.headless,
-      minMatchScore: s.scraper.minMatchScore,
-      maxMinutesAgo: s.scraper.maxMinutesAgo,
-      maxConsecutiveErrors: 5,
-      errorPauseMinutes: 30,
-      navigationDelay: { min: 2000, max: 5000 },
-      clickDelay: { min: 1000, max: 3000 },
-      maxConcurrentMatches: 5,
-      maxDescriptionLength: 2000,
-    },
-    ui: {
-      port: s.ui.port,
-    },
-    paths: {
-      resume: path.resolve('./data/resume.pdf'),
-      settings: SETTINGS_PATH,
-      profileSummary: path.resolve('./data/profile-summary.json'),
-      linkedinCookies: path.resolve('./data/linkedin-cookies.json'),
-      logs: path.resolve('./logs/app.log'),
-    },
-    profile: s.profile,
-  };
-}
-
-/**
- * Application configuration.
- * Secrets (API key) come from .env.
- * Everything else comes from data/settings.json.
- */
-export const config = buildConfig();
-
-/**
- * Reloads configuration from disk.
- * Call this after saving settings.json so the running process picks up changes.
- */
-export function reloadConfig(): void {
+export async function initConfig(): Promise<void> {
   dotenv.config({ override: true });
-  const fresh = buildConfig();
-  Object.assign(config.nvidia, fresh.nvidia);
-  Object.assign(config.search, fresh.search);
-  Object.assign(config.scraper, fresh.scraper);
-  Object.assign(config.ui, fresh.ui);
-  Object.assign(config.paths, fresh.paths);
-  config.profile = fresh.profile;
+  config.nvidia.apiKey = process.env.NVIDIA_API_KEY || '';
+
+  const settings = await getOrCreateSettings();
+
+  config.search.keywords = settings.searchKeywords;
+  config.search.locations = settings.searchLocations;
+  config.search.geoId = settings.geoId;
+
+  config.scraper.intervalMinutes = settings.intervalMinutes;
+  config.scraper.headless = settings.headless;
+  config.scraper.minMatchScore = settings.minMatchScore;
+  config.scraper.maxMinutesAgo = settings.maxMinutesAgo;
+
+  config.ui.port = settings.uiPort;
+}
+
+/**
+ * Reloads configuration from the database.
+ * Call after saving settings so the running process picks up changes.
+ */
+export async function reloadConfig(): Promise<void> {
+  await initConfig();
 }
 
 /**

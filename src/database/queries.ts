@@ -17,7 +17,7 @@ export interface JobInput {
 }
 
 /** Possible application status values */
-export type JobStatus = 'new' | 'reviewed' | 'applied' | 'rejected';
+export type JobStatus = 'new' | 'applying' | 'applied' | 'skipped' | 'failed' | 'reviewed' | 'rejected';
 
 /**
  * Checks if a job with the given LinkedIn ID already exists in the database.
@@ -293,18 +293,42 @@ export async function markScraperError() {
 /**
  * Resets the scraper state on startup.
  * If isRunning is true from a previous crashed/killed run, reset it so the scraper can proceed.
+ * Also clears any stale PID from a previous process.
  */
 export async function resetScraperStateOnStartup() {
   const state = await getScraperState();
-  if (state.isRunning) {
-    logger.warn('Scraper state was stuck as running from a previous session — resetting', {
+  if (state.isRunning || state.pid !== null) {
+    logger.warn('Scraper state was stuck from a previous session — resetting', {
       lastRunAt: state.lastRunAt.toISOString(),
       errorCount: state.errorCount,
+      stalePid: state.pid,
     });
     await prisma.scraperState.update({
       where: { id: 'singleton' },
-      data: { isRunning: false },
+      data: { isRunning: false, pid: null },
     });
   }
   return state;
+}
+
+/**
+ * Sets the scraper agent's PID in the database.
+ */
+export async function setScraperPid(pid: number) {
+  return prisma.scraperState.upsert({
+    where: { id: 'singleton' },
+    update: { pid },
+    create: { id: 'singleton', pid },
+  });
+}
+
+/**
+ * Clears the scraper agent's PID and resets isRunning.
+ */
+export async function clearScraperPid() {
+  return prisma.scraperState.upsert({
+    where: { id: 'singleton' },
+    update: { pid: null, isRunning: false },
+    create: { id: 'singleton' },
+  });
 }

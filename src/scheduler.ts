@@ -1,8 +1,8 @@
-import { config } from './config';
+import { config, reloadConfig } from './config';
 import { logger } from './logger';
 import { LinkedInScraper, ScrapedJob } from './scraper/linkedin-scraper';
 import { getOrCreateProfileSummary } from './ai/resume-processor';
-import { filterRelevantJobs } from './ai/job-matcher';
+import { filterRelevantJobs, ProfilePreferences } from './ai/job-matcher';
 import {
   jobExistsBatch,
   saveJobMinimal,
@@ -10,8 +10,15 @@ import {
   markScraperRunning,
   markScraperSuccess,
   markScraperError,
-  resetScraperStateOnStartup,
 } from './database/queries';
+import { getProfileForAI } from './database/profile-queries';
+
+/** Flag to prevent new cycles from starting during graceful shutdown */
+export let shutdownRequested = false;
+
+export function requestShutdown(): void {
+  shutdownRequested = true;
+}
 
 /**
  * Executes a single scrape cycle with the new pipeline:
@@ -24,9 +31,16 @@ import {
  *
  * No detail-page scraping. No per-job AI scoring. Fast and efficient.
  */
-async function runScrapeCycle(): Promise<void> {
+export async function runScrapeCycle(): Promise<void> {
+  if (shutdownRequested) {
+    logger.info('Shutdown requested, skipping scrape cycle');
+    return;
+  }
   const cycleStart = Date.now();
   logger.info('=== SCRAPE CYCLE: Starting ===');
+
+  // Reload config from DB for fresh settings
+  await reloadConfig();
 
   const state = await getScraperState();
   logger.info('Scraper state check', {
@@ -66,9 +80,15 @@ async function runScrapeCycle(): Promise<void> {
   let totalSaved = 0;
 
   try {
-    // Load profile summary for AI relevance filtering
+    // Load profile data for AI relevance filtering
     logger.info('Loading profile summary for AI filtering...');
     const profileSummary = await getOrCreateProfileSummary();
+    const profileData = await getProfileForAI();
+    const preferences: ProfilePreferences = {
+      excludeTitleKeywords: profileData.excludeTitleKeywords,
+      targetSeniority: profileData.targetSeniority,
+      preferredTechStack: profileData.preferredTechStack,
+    };
 
     // Launch browser (loads LinkedIn cookies if available)
     logger.info('Launching browser...');
@@ -118,7 +138,7 @@ async function runScrapeCycle(): Promise<void> {
       }
 
       // STEP 3: ONE AI call to filter irrelevant titles
-      const relevantIds = await filterRelevantJobs(profileSummary, recentCards);
+      const relevantIds = await filterRelevantJobs(profileSummary, recentCards, preferences);
       const relevantCards = recentCards.filter((job) => relevantIds.has(job.linkedinId));
       totalAfterAiFilter += relevantCards.length;
 
@@ -196,11 +216,15 @@ async function runScrapeCycle(): Promise<void> {
   }
 }
 
+export interface SchedulerHandle {
+  stop: () => void;
+}
+
 /**
  * Starts the scheduler loop that runs scrape cycles
  * at the configured interval (default: 2 minutes).
  */
-export async function startScheduler(): Promise<void> {
+export async function startScheduler(): Promise<SchedulerHandle> {
   const intervalMs = config.scraper.intervalMinutes * 60_000;
 
   logger.info('Starting job tracker scheduler', {
@@ -208,9 +232,6 @@ export async function startScheduler(): Promise<void> {
     keywords: config.search.keywords,
     maxMinutesAgo: config.scraper.maxMinutesAgo,
   });
-
-  // Reset any stuck isRunning state from a previous crashed/killed session
-  await resetScraperStateOnStartup();
 
   // Run immediately on start
   runScrapeCycle().catch((error) => {
@@ -221,7 +242,8 @@ export async function startScheduler(): Promise<void> {
   });
 
   // Then run on interval
-  setInterval(() => {
+  const intervalId = setInterval(() => {
+    if (shutdownRequested) return;
     runScrapeCycle().catch((error) => {
       logger.error('Scheduled scrape cycle error', {
         error: error instanceof Error ? error.message : String(error),
@@ -229,4 +251,8 @@ export async function startScheduler(): Promise<void> {
       });
     });
   }, intervalMs);
+
+  return {
+    stop: () => clearInterval(intervalId),
+  };
 }

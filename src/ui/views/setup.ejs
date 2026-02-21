@@ -13,6 +13,7 @@
       <a href="/" class="nav-brand">Job Tracker</a>
       <div class="nav-links">
         <a href="/" class="nav-link">Dashboard</a>
+        <a href="/profile" class="nav-link">Profile</a>
         <a href="/setup" class="nav-link active">Settings</a>
       </div>
       <div class="nav-status">
@@ -233,9 +234,64 @@
       </form>
     </section>
 
-    <!-- Section 4: Import / Export Settings -->
+    <!-- Section 4: Auto-Apply Settings -->
+    <section class="setup-section" id="auto-apply">
+      <h2>4. Auto-Apply Settings</h2>
+      <p class="section-desc">Configure the auto-apply agent. It will automatically fill and submit job applications for matched jobs.</p>
+
+      <form method="POST" action="/setup/auto-apply" class="setup-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="autoApplyEnabled"
+                <%= settings.autoApply && settings.autoApply.enabled ? 'checked' : '' %>>
+              Enable auto-apply agent
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" name="autoApplyDryRun"
+                <%= !settings.autoApply || settings.autoApply.dryRun ? 'checked' : '' %>>
+              Dry run mode
+            </label>
+            <span class="hint">When enabled, forms are filled but NOT submitted. Review screenshots in logs before turning this off.</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="autoApplyBatchSize">Batch Size (jobs per cycle)</label>
+            <input type="number" id="autoApplyBatchSize" name="autoApplyBatchSize"
+              value="<%= settings.autoApply ? settings.autoApply.batchSize : 5 %>" min="1" max="50">
+          </div>
+          <div class="form-group">
+            <label for="autoApplyDelaySeconds">Delay Between Applications (seconds)</label>
+            <input type="number" id="autoApplyDelaySeconds" name="autoApplyDelaySeconds"
+              value="<%= settings.autoApply ? settings.autoApply.delaySeconds : 10 %>" min="1" max="300">
+          </div>
+          <div class="form-group">
+            <label for="autoApplyPollMinutes">Poll Interval (minutes)</label>
+            <input type="number" id="autoApplyPollMinutes" name="autoApplyPollMinutes"
+              value="<%= settings.autoApply ? settings.autoApply.pollMinutes : 2 %>" min="1" max="60">
+            <span class="hint">How often to check for new jobs when the queue is empty</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="autoApplySkipDomains">Skip Domains <span class="hint">(comma-separated)</span></label>
+          <input type="text" id="autoApplySkipDomains" name="autoApplySkipDomains"
+            value="<%= settings.autoApply ? settings.autoApply.skipDomains.join(', ') : '' %>"
+            placeholder="greenhouse.io, lever.co">
+          <span class="hint">Domain patterns to always skip — useful for sites that require account creation</span>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save Auto-Apply Settings</button>
+      </form>
+    </section>
+
+    <!-- Section 5: Import / Export Settings -->
     <section class="setup-section" id="import-export">
-      <h2>4. Import / Export Settings</h2>
+      <h2>5. Import / Export Settings</h2>
       <p class="section-desc">Export your current settings as a JSON file, or import a previously exported one. This includes search settings, scraper config, and profile preferences — everything except the API key.</p>
 
       <div style="display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;">

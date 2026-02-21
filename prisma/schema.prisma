@@ -26,12 +26,15 @@ model Job {
   keyMatches  String   @default("[]") // JSON array of matched skills/experience
 
   // Application Tracking
-  status      String   @default("new") // new/reviewed/applied/rejected
+  status      String   @default("new") // new/applying/applied/skipped/failed/reviewed/rejected
   notes       String?
 
   // Metadata
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  // Relations
+  applicationLogs ApplicationLog[]
 
   @@index([status])
   @@index([matchScore])
@@ -44,4 +47,226 @@ model ScraperState {
   lastSuccessAt DateTime?
   errorCount    Int      @default(0)
   isRunning     Boolean  @default(false)
+  pid           Int?
+}
+
+// ─── Profile & Settings Models ───────────────────────────────
+
+model UserProfile {
+  id        String @id @default("singleton")
+
+  // Contact Info
+  firstName   String @default("")
+  lastName    String @default("")
+  email       String @default("")
+  phone       String @default("")
+  linkedinUrl String @default("")
+  website     String @default("")
+  city        String @default("")
+  state       String @default("")
+  country     String @default("")
+  zipCode     String @default("")
+
+  // Additional Application Fields
+  preferredName      String @default("")
+  pronouns           String @default("")
+  dateOfBirth        String @default("")
+  yearsOfExperience  Int    @default(0)
+  desiredSalary      String @default("")
+  availableStartDate String @default("")
+  coverLetterNotes   String @default("")
+
+  // Personal Summary (user-written elevator pitch)
+  summary String @default("")
+
+  // AI-Generated Profile Cache (replaces data/profile-summary.json)
+  profileSummaryCache    String?
+  profileSummaryCachedAt DateTime?
+
+  // Job Preferences
+  remoteOnly            Boolean @default(false)
+  willingToRelocate     Boolean @default(false)
+  openToContract        Boolean @default(false)
+  visaSponsorshipNeeded Boolean @default(false)
+  minSalary             Int     @default(0)
+  preferredCompanySize  String  @default("[]")
+  avoidIndustries       String  @default("[]")
+  preferredTechStack    String  @default("[]")
+  targetSeniority       String  @default("[]")
+  excludeTitleKeywords  String  @default("[]")
+  keyInterests          String  @default("[]")
+  dealbreakers          String  @default("[]")
+
+  // Relations
+  workExperience     WorkExperience[]
+  education          Education[]
+  skills             Skill[]
+  references         Reference[]
+  documents          Document[]
+  demographicAnswers DemographicAnswer[]
+
+  updatedAt DateTime @updatedAt
+}
+
+model WorkExperience {
+  id        String      @id @default(uuid())
+  profileId String      @default("singleton")
+  profile   UserProfile @relation(fields: [profileId], references: [id])
+
+  employer    String
+  title       String
+  location    String  @default("")
+  startDate   String // "2023-01" format
+  endDate     String? // null = current position
+  isCurrent   Boolean @default(false)
+  description String  @default("")
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+}
+
+model Education {
+  id        String      @id @default(uuid())
+  profileId String      @default("singleton")
+  profile   UserProfile @relation(fields: [profileId], references: [id])
+
+  institution  String
+  degree       String
+  fieldOfStudy String  @default("")
+  startDate    String?
+  endDate      String?
+  gpa          String?
+  sortOrder    Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([profileId])
+}
+
+model Skill {
+  id        String      @id @default(uuid())
+  profileId String      @default("singleton")
+  profile   UserProfile @relation(fields: [profileId], references: [id])
+
+  name              String
+  category          String @default("technical")
+  yearsOfExperience Int?
+  proficiency       String?
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+}
+
+model Reference {
+  id        String      @id @default(uuid())
+  profileId String      @default("singleton")
+  profile   UserProfile @relation(fields: [profileId], references: [id])
+
+  name         String
+  relationship String @default("")
+  company      String @default("")
+  email        String @default("")
+  phone        String @default("")
+  notes        String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([profileId])
+}
+
+model Document {
+  id        String      @id @default(uuid())
+  profileId String      @default("singleton")
+  profile   UserProfile @relation(fields: [profileId], references: [id])
+
+  type        String // "resume", "other"
+  filename    String
+  storagePath String // relative: "documents/resume-20260220.pdf"
+  mimeType    String  @default("application/pdf")
+  sizeBytes   Int     @default(0)
+  isPrimary   Boolean @default(false)
+
+  uploadedAt DateTime @default(now())
+
+  @@index([profileId])
+}
+
+model DemographicAnswer {
+  id        String      @id @default(uuid())
+  profileId String      @default("singleton")
+  profile   UserProfile @relation(fields: [profileId], references: [id])
+
+  category  String
+  answer    String  @default("")
+  notes     String  @default("")
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, category])
+  @@index([profileId])
+}
+
+model ApplierState {
+  id            String    @id @default("singleton")
+  lastRunAt     DateTime  @default(now())
+  lastSuccessAt DateTime?
+  errorCount    Int       @default(0)
+  isRunning     Boolean   @default(false)
+  pid           Int?
+  totalApplied  Int       @default(0)
+  totalSkipped  Int       @default(0)
+  totalFailed   Int       @default(0)
+}
+
+model ApplicationLog {
+  id        String @id @default(uuid())
+  jobId     String
+  job       Job    @relation(fields: [jobId], references: [id])
+
+  status    String
+  reason    String @default("")
+  formType  String @default("")
+  fieldsFilledCount Int @default(0)
+  aiCallsUsed       Int @default(0)
+  durationMs        Int @default(0)
+  screenshotPath    String @default("")
+
+  createdAt DateTime @default(now())
+
+  @@index([jobId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AppSettings {
+  id String @id @default("singleton")
+
+  // Search
+  searchKeywords  String @default("[]")
+  searchLocations String @default("[\"United States\"]")
+  geoId           String @default("103644278")
+
+  // Scraper
+  intervalMinutes Int     @default(2)
+  headless        Boolean @default(true)
+  minMatchScore   Int     @default(50)
+  maxMinutesAgo   Int     @default(10)
+
+  // Auto-Apply
+  autoApplyEnabled      Boolean @default(false)
+  autoApplyDryRun       Boolean @default(true)
+  autoApplyBatchSize    Int     @default(5)
+  autoApplyDelaySeconds Int     @default(10)
+  autoApplyPollMinutes  Int     @default(2)
+  autoApplySkipDomains  String  @default("[]")
+
+  // UI
+  uiPort Int @default(3000)
+
+  updatedAt DateTime @updatedAt
 }

@@ -2,9 +2,15 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 import pdfParse from 'pdf-parse';
-import { config, loadSettings } from '../config';
+import { config } from '../config';
 import { logger } from '../logger';
 import { buildResumeSummaryPrompt } from './prompts';
+import {
+  getProfileSummaryCache,
+  setProfileSummaryCache,
+  getProfileForAI,
+  getPrimaryResume,
+} from '../database/profile-queries';
 
 /**
  * Extracts text content from a PDF file.
@@ -17,26 +23,33 @@ async function extractPdfText(filePath: string): Promise<string> {
 
 /**
  * Processes the user's resume PDF and profile context once,
- * generating a structured profile summary cached to disk.
+ * generating a structured profile summary cached in the database.
  * Subsequent runs reuse the cached summary.
  */
 export async function getOrCreateProfileSummary(): Promise<string> {
-  const summaryPath = config.paths.profileSummary;
-
-  if (fs.existsSync(summaryPath)) {
+  // Check DB cache first
+  const cached = await getProfileSummaryCache();
+  if (cached.cache) {
     logger.info('Using cached profile summary');
-    return fs.readFileSync(summaryPath, 'utf-8');
+    return cached.cache;
   }
 
   logger.info('Generating profile summary from resume...');
 
-  if (!fs.existsSync(config.paths.resume)) {
-    throw new Error(`Resume not found at ${config.paths.resume}. Place your resume.pdf in the data/ directory.`);
-  }
-  const resumeText = await extractPdfText(config.paths.resume);
+  // Find primary resume document
+  const resumeDoc = await getPrimaryResume();
+  const resumePath = resumeDoc
+    ? path.resolve('./data', resumeDoc.storagePath)
+    : path.resolve('./data/resume.pdf'); // fallback for legacy location
 
-  const settings = loadSettings();
-  const additionalContext = JSON.stringify(settings.profile, null, 2);
+  if (!fs.existsSync(resumePath)) {
+    throw new Error(`Resume not found at ${resumePath}. Upload a resume via the Profile page.`);
+  }
+  const resumeText = await extractPdfText(resumePath);
+
+  // Get profile context from DB instead of settings.json
+  const profileData = await getProfileForAI();
+  const additionalContext = JSON.stringify(profileData, null, 2);
 
   const client = new OpenAI({
     apiKey: config.nvidia.apiKey,
@@ -72,11 +85,8 @@ export async function getOrCreateProfileSummary(): Promise<string> {
     throw new Error('Profile summary is not valid JSON. Please check model response.');
   }
 
-  const summaryDir = path.dirname(summaryPath);
-  if (!fs.existsSync(summaryDir)) {
-    fs.mkdirSync(summaryDir, { recursive: true });
-  }
-  fs.writeFileSync(summaryPath, cleaned, 'utf-8');
+  // Cache in DB instead of writing to disk
+  await setProfileSummaryCache(cleaned);
 
   logger.info('Profile summary generated and cached');
   return cleaned;
