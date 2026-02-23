@@ -1,0 +1,8 @@
+-- Seed sensible defaults for improved filtering (only updates existing singleton profile)
+
+UPDATE "UserProfile"
+SET
+  "includeTitlePatterns" = '["software engineer","software developer","frontend","backend","full stack","fullstack","web developer","mobile developer","mobile engineer","AI engineer","ML engineer","machine learning engineer","react developer","react engineer","python developer","node developer","typescript","javascript developer","iOS developer","iOS engineer","android developer","android engineer","application developer","applications engineer"]',
+  "jobSearchDescription" = 'I''m a new CS graduate (May 2026) looking for entry-level roles where I''ll be building software products. This includes web applications, mobile apps, AI/ML products, APIs, and developer tools. I want hands-on coding roles -- writing features, building frontends/backends, developing AI agents, shipping product. NOT looking for: IT support, sales engineering, solutions consulting, hardware engineering, QA-only testing, data analysis without coding, or niche enterprise platform administration.',
+  "excludeTitleKeywords" = '["senior","sr","staff","principal","lead","director","vp","head of","manager","architect","embedded","test engineer","QA","SDET","mechanical","electrical","civil","hardware","systems engineer","network engineer","security engineer","devops","SRE","data scientist","data analyst","guidewire","SAP","salesforce","mainframe","COBOL","solutions engineer","sales engineer","developer advocate","evangelist","support engineer","support specialist","programmer analyst","business analyst","consultant","administrator","technician","coordinator"]'
+WHERE "id" = 'singleton';

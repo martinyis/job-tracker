@@ -15,7 +15,7 @@ export const config = {
   nvidia: {
     apiKey: process.env.NVIDIA_API_KEY || '',
     baseURL: 'https://integrate.api.nvidia.com/v1',
-    model: 'moonshotai/kimi-k2.5',
+    model: 'moonshotai/kimi-k2-instruct',
     maxTokens: 4096,
     temperature: 0.3,
   },

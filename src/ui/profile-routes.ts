@@ -145,6 +145,10 @@ profileRouter.post('/profile/preferences', async (req: Request, res: Response) =
       preferredTechStack: toJsonArray(splitComma(str(req.body.preferredTechStack))),
       targetSeniority: toJsonArray(splitComma(str(req.body.targetSeniority))),
       excludeTitleKeywords: toJsonArray(splitComma(str(req.body.excludeTitleKeywords))),
+      includeTitlePatterns: toJsonArray(splitComma(str(req.body.includeTitlePatterns))),
+      jobSearchDescription: str(req.body.jobSearchDescription),
+      missionStatement: str(req.body.missionStatement),
+      urgencySignals: str(req.body.urgencySignals),
       keyInterests: toJsonArray(splitComma(str(req.body.keyInterests))),
       dealbreakers: toJsonArray(splitComma(str(req.body.dealbreakers))),
     });

@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { config } from '../config';
 import { logger } from '../logger';
-import { buildJobMatchPrompt, buildRelevanceFilterPrompt } from './prompts';
+import { buildJobMatchPrompt, buildRelevanceFilterPrompt, FilteringRules } from './prompts';
 
 /** Result returned from the AI model's job matching */
 export interface MatchResult {
@@ -133,13 +133,21 @@ export interface JobForFiltering {
 /** Profile preferences passed into filtering functions */
 export interface ProfilePreferences {
   excludeTitleKeywords: string[];
+  includeTitlePatterns: string[];
   targetSeniority: string[];
   preferredTechStack: string[];
+  jobSearchDescription: string;
+}
+
+/** Escapes special regex characters in a string */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
  * Hard pre-filter: instantly rejects jobs whose titles contain excluded keywords.
- * Runs BEFORE the AI call — zero cost, zero latency.
+ * Uses word-boundary matching so "sr" matches "Sr Engineer" without needing exact punctuation.
+ * Special-character keywords (c++, .net) fall back to simple includes().
  */
 function preFilterByKeywords(jobs: JobForFiltering[], excludeKeywords: string[]): {
   passed: JobForFiltering[];
@@ -147,17 +155,100 @@ function preFilterByKeywords(jobs: JobForFiltering[], excludeKeywords: string[])
 } {
   if (excludeKeywords.length === 0) return { passed: jobs, rejected: [] };
 
-  const lowerKeywords = excludeKeywords.map((k) => k.toLowerCase());
+  // Build regexes for each keyword, handling punctuation gracefully
+  const matchers = excludeKeywords.map((kw) => {
+    const normalized = kw.trim().toLowerCase();
+    // Strip trailing period for matching (so "sr." matches "sr ")
+    const base = normalized.replace(/\.+$/, '');
+    // If keyword is purely alphanumeric/spaces, use word boundaries
+    if (/^[a-z0-9\s]+$/i.test(base)) {
+      return new RegExp(`\\b${escapeRegex(base)}\\b`, 'i');
+    }
+    // For special-character keywords (c++, .net), use simple includes
+    return null; // will fall back to includes
+  });
+
+  const rawKeywords = excludeKeywords.map((kw) => kw.trim().toLowerCase());
+
   const passed: JobForFiltering[] = [];
   const rejected: JobForFiltering[] = [];
 
   for (const job of jobs) {
     const titleLower = job.title.toLowerCase();
-    const isExcluded = lowerKeywords.some((kw) => titleLower.includes(kw));
+    const isExcluded = matchers.some((regex, i) => {
+      if (regex) return regex.test(titleLower);
+      return titleLower.includes(rawKeywords[i]);
+    });
     if (isExcluded) {
       rejected.push(job);
     } else {
       passed.push(job);
+    }
+  }
+
+  return { passed, rejected };
+}
+
+/**
+ * Rejects jobs whose titles contain seniority level numbers (II, III, IV, 2, 3, 4, etc.)
+ * that indicate mid-senior to senior level. Only active when targetSeniority is set
+ * and does NOT include "senior" or "staff" levels.
+ */
+function preFilterBySeniorityLevel(
+  jobs: JobForFiltering[],
+  targetSeniority: string[],
+): { passed: JobForFiltering[]; rejected: JobForFiltering[] } {
+  if (targetSeniority.length === 0) return { passed: jobs, rejected: [] };
+
+  const targets = targetSeniority.map((s) => s.toLowerCase());
+  const allowsSenior = targets.some((t) => t.includes('senior') || t.includes('staff') || t.includes('principal'));
+  if (allowsSenior) return { passed: jobs, rejected: [] };
+
+  const allowsMid = targets.some((t) => t === 'mid' || t === 'mid-level' || t === 'intermediate');
+
+  // Regex to match level indicators: "Engineer III", "Developer IV", "Engineer 3"
+  const seniorLevelPattern = /\b(III|IV|V|VI|VII)\b|\b([3-9])\s*(?:\(|$|-|,|:)/i;
+  const midLevelPattern = /\bII\b|\b2\s*(?:\(|$|-|,|:)/i;
+
+  const passed: JobForFiltering[] = [];
+  const rejected: JobForFiltering[] = [];
+
+  for (const job of jobs) {
+    const title = job.title;
+    if (seniorLevelPattern.test(title)) {
+      rejected.push(job);
+    } else if (!allowsMid && midLevelPattern.test(title)) {
+      rejected.push(job);
+    } else {
+      passed.push(job);
+    }
+  }
+
+  return { passed, rejected };
+}
+
+/**
+ * Whitelist pre-filter: keeps only jobs whose titles match at least one
+ * inclusion pattern. When the whitelist is empty, all jobs pass (disabled).
+ * Patterns are case-insensitive substring matches.
+ */
+function preFilterByWhitelist(
+  jobs: JobForFiltering[],
+  includePatterns: string[],
+): { passed: JobForFiltering[]; rejected: JobForFiltering[] } {
+  if (includePatterns.length === 0) return { passed: jobs, rejected: [] };
+
+  const lowerPatterns = includePatterns.map((p) => p.trim().toLowerCase());
+  const passed: JobForFiltering[] = [];
+  const rejected: JobForFiltering[] = [];
+
+  for (const job of jobs) {
+    const titleLower = job.title.toLowerCase();
+    const matches = lowerPatterns.some((pattern) => titleLower.includes(pattern));
+    if (matches) {
+      passed.push(job);
+    } else {
+      rejected.push(job);
     }
   }
 
@@ -190,10 +281,12 @@ function deduplicateJobs(jobs: JobForFiltering[]): {
 }
 
 /**
- * Filters a list of jobs for relevance using:
- * 1. Hard keyword pre-filter (instant, no AI cost)
- * 2. Deduplication (same title + company)
- * 3. AI call with strict prompt (seniority-aware, exclusion-aware)
+ * Filters a list of jobs for relevance using a multi-layer pipeline:
+ * 1. Keyword blacklist pre-filter (word-boundary matching, zero cost)
+ * 2. Seniority level number filter (zero cost)
+ * 3. Title whitelist inclusion filter (zero cost, optional)
+ * 4. Deduplication (same title + company)
+ * 5. AI batch filter (one API call, fail-closed on error)
  *
  * Returns the set of linkedinIds that passed all filters.
  */
@@ -204,26 +297,50 @@ export async function filterRelevantJobs(
 ): Promise<Set<string>> {
   if (jobs.length === 0) return new Set();
 
-  const { passed: afterKeywords, rejected } = preFilterByKeywords(jobs, preferences.excludeTitleKeywords);
-  if (rejected.length > 0) {
-    logger.info(`Keyword pre-filter: ${jobs.length} → ${afterKeywords.length} (rejected ${rejected.length})`, {
-      rejectedTitles: rejected.map((j) => j.title),
+  // Layer 1: Keyword blacklist
+  const { passed: afterKeywords, rejected: keywordRejected } =
+    preFilterByKeywords(jobs, preferences.excludeTitleKeywords);
+  if (keywordRejected.length > 0) {
+    logger.info(`Keyword pre-filter: ${jobs.length} -> ${afterKeywords.length} (rejected ${keywordRejected.length})`, {
+      rejectedTitles: keywordRejected.map((j) => j.title),
     });
   }
 
-  const { unique: afterDedup, duplicates } = deduplicateJobs(afterKeywords);
+  // Layer 2: Seniority level numbers
+  const { passed: afterSeniority, rejected: seniorityRejected } =
+    preFilterBySeniorityLevel(afterKeywords, preferences.targetSeniority);
+  if (seniorityRejected.length > 0) {
+    logger.info(`Seniority level filter: ${afterKeywords.length} -> ${afterSeniority.length} (rejected ${seniorityRejected.length})`, {
+      rejectedTitles: seniorityRejected.map((j) => j.title),
+    });
+  }
+
+  // Layer 3: Title whitelist (skip if empty)
+  const { passed: afterWhitelist, rejected: whitelistRejected } =
+    preFilterByWhitelist(afterSeniority, preferences.includeTitlePatterns);
+  if (whitelistRejected.length > 0) {
+    logger.info(`Whitelist pre-filter: ${afterSeniority.length} -> ${afterWhitelist.length} (rejected ${whitelistRejected.length})`, {
+      rejectedTitles: whitelistRejected.map((j) => j.title),
+    });
+  }
+
+  // Layer 4: Deduplication
+  const { unique: afterDedup, duplicates } = deduplicateJobs(afterWhitelist);
   if (duplicates > 0) {
-    logger.info(`Dedup filter: ${afterKeywords.length} → ${afterDedup.length} (removed ${duplicates} duplicates)`);
+    logger.info(`Dedup filter: ${afterWhitelist.length} -> ${afterDedup.length} (removed ${duplicates} duplicates)`);
   }
 
   if (afterDedup.length === 0) return new Set();
 
+  // Layer 5: AI batch filter
   const client = createClient();
 
-  const filteringRules = {
+  const filteringRules: FilteringRules = {
     targetSeniority: preferences.targetSeniority,
     excludeTitleKeywords: preferences.excludeTitleKeywords,
     preferredTechStack: preferences.preferredTechStack,
+    includeTitlePatterns: preferences.includeTitlePatterns,
+    jobSearchDescription: preferences.jobSearchDescription,
   };
 
   const prompt = buildRelevanceFilterPrompt(profileSummary, afterDedup, filteringRules);
@@ -274,6 +391,8 @@ export async function filterRelevantJobs(
     logger.info(`AI relevance filter complete`, {
       inputTotal: jobs.length,
       afterKeywordFilter: afterKeywords.length,
+      afterSeniorityFilter: afterSeniority.length,
+      afterWhitelistFilter: afterWhitelist.length,
       afterDedup: afterDedup.length,
       aiKept: relevantSet.size,
       aiKeptTitles: keptJobs.map(j => j.title),
@@ -283,10 +402,10 @@ export async function filterRelevantJobs(
 
     return relevantSet;
   } catch (error) {
-    logger.error('Failed to filter jobs for relevance', {
+    logger.error('AI filter failed -- rejecting all jobs (fail closed). They will be re-evaluated next cycle.', {
       jobCount: afterDedup.length,
       error: error instanceof Error ? error.message : String(error),
     });
-    return new Set(afterDedup.map((j) => j.linkedinId));
+    return new Set();
   }
 }

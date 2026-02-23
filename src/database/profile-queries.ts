@@ -55,7 +55,9 @@ export async function updateProfile(data: Record<string, unknown>) {
   const cacheInvalidatingFields = [
     'firstName', 'lastName', 'summary',
     'preferredTechStack', 'targetSeniority', 'excludeTitleKeywords',
+    'includeTitlePatterns', 'jobSearchDescription',
     'keyInterests', 'dealbreakers', 'remoteOnly', 'minSalary',
+    'missionStatement', 'urgencySignals',
   ];
 
   const shouldInvalidateCache = Object.keys(data).some((key) =>
@@ -95,11 +97,39 @@ export async function getProfileForAI() {
     preferredTechStack: parseJsonArray(profile.preferredTechStack),
     targetSeniority: parseJsonArray(profile.targetSeniority),
     excludeTitleKeywords: parseJsonArray(profile.excludeTitleKeywords),
+    includeTitlePatterns: parseJsonArray(profile.includeTitlePatterns),
+    jobSearchDescription: profile.jobSearchDescription,
     keyInterests: parseJsonArray(profile.keyInterests),
     dealbreakers: parseJsonArray(profile.dealbreakers),
     workExperience: profile.workExperience,
     education: profile.education,
     skills: profile.skills,
+  };
+}
+
+/**
+ * Returns profile data specifically for the enrichment AI prompt.
+ * Includes mission/urgency fields and condensed work experience.
+ */
+export async function getProfileForEnrichmentAI() {
+  const profile = await getOrCreateProfile();
+  return {
+    profileSummaryCache: profile.profileSummaryCache || '',
+    jobSearchDescription: profile.jobSearchDescription,
+    missionStatement: profile.missionStatement,
+    urgencySignals: profile.urgencySignals,
+    keyInterests: parseJsonArray(profile.keyInterests),
+    dealbreakers: parseJsonArray(profile.dealbreakers),
+    preferredTechStack: parseJsonArray(profile.preferredTechStack),
+    targetSeniority: parseJsonArray(profile.targetSeniority),
+    workExperience: profile.workExperience.slice(0, 5).map((exp) => ({
+      title: exp.title,
+      employer: exp.employer,
+      startDate: exp.startDate,
+      endDate: exp.endDate,
+      isCurrent: exp.isCurrent,
+    })),
+    skills: profile.skills.map((s) => s.name),
   };
 }
 
@@ -375,71 +405,3 @@ export async function deleteDemographicAnswer(category: string) {
   });
 }
 
-// ─── Auto-Apply Profile Data ────────────────────────────
-
-/**
- * Returns everything the auto-apply agent needs: profile, preferences,
- * work history, education, skills, demographic answers, and primary resume path.
- */
-export async function getProfileForAutoApply() {
-  const profile = await prisma.userProfile.findUnique({
-    where: { id: 'singleton' },
-    include: {
-      workExperience: { orderBy: { sortOrder: 'asc' } },
-      education: { orderBy: { sortOrder: 'asc' } },
-      skills: true,
-      demographicAnswers: true,
-      documents: {
-        where: { type: 'resume', isPrimary: true },
-        take: 1,
-      },
-    },
-  });
-
-  if (!profile) return null;
-
-  return {
-    // Contact info
-    firstName: profile.firstName,
-    lastName: profile.lastName,
-    preferredName: profile.preferredName,
-    pronouns: profile.pronouns,
-    email: profile.email,
-    phone: profile.phone,
-    linkedinUrl: profile.linkedinUrl,
-    website: profile.website,
-    city: profile.city,
-    state: profile.state,
-    country: profile.country,
-    zipCode: profile.zipCode,
-
-    // Additional application fields
-    dateOfBirth: profile.dateOfBirth,
-    yearsOfExperience: profile.yearsOfExperience,
-    desiredSalary: profile.desiredSalary,
-    availableStartDate: profile.availableStartDate,
-    summary: profile.summary,
-    coverLetterNotes: profile.coverLetterNotes,
-
-    // Preferences
-    remoteOnly: profile.remoteOnly,
-    openToContract: profile.openToContract,
-    visaSponsorshipNeeded: profile.visaSponsorshipNeeded,
-    minSalary: profile.minSalary,
-    preferredTechStack: parseJsonArray(profile.preferredTechStack),
-    keyInterests: parseJsonArray(profile.keyInterests),
-
-    // Experience, education, skills
-    workExperience: profile.workExperience,
-    education: profile.education,
-    skills: profile.skills,
-
-    // Demographic answers (keyed by category for easy lookup)
-    demographicAnswers: Object.fromEntries(
-      profile.demographicAnswers.map((a) => [a.category, { answer: a.answer, notes: a.notes }])
-    ),
-
-    // Resume
-    resumePath: profile.documents[0]?.storagePath ?? null,
-  };
-}

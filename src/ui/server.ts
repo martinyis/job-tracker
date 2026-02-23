@@ -5,6 +5,7 @@ import { logger } from '../logger';
 import { router } from './routes';
 import { setupRouter, isConfigured } from './setup-routes';
 import { profileRouter } from './profile-routes';
+import { resetEnricherStateOnStartup } from '../database/enrichment-queries';
 
 /**
  * Creates and configures the Express UI server.
@@ -22,6 +23,9 @@ export function createServer(): express.Application {
 
   // Static files
   app.use('/static', express.static(path.join(__dirname, 'views')));
+
+  // Serve screenshots from data/screenshots
+  app.use('/screenshots', express.static(path.resolve('./data/screenshots')));
 
   // Setup & profile routes (always available)
   app.use('/', setupRouter);
@@ -45,7 +49,10 @@ export function createServer(): express.Application {
 /**
  * Starts the Express server on the configured port.
  */
-export function startServer(): void {
+export async function startServer(): Promise<void> {
+  // Clean up stale enricher state from previous crashes
+  await resetEnricherStateOnStartup();
+
   const app = createServer();
 
   app.listen(config.ui.port, () => {

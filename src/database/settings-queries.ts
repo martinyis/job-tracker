@@ -2,7 +2,7 @@ import { prisma } from './client';
 import { parseJsonArray, toJsonArray } from './profile-queries';
 
 /** JSON array fields in AppSettings that need parsing/stringifying */
-const JSON_ARRAY_FIELDS = ['searchKeywords', 'searchLocations', 'autoApplySkipDomains'] as const;
+const JSON_ARRAY_FIELDS = ['searchKeywords', 'searchLocations'] as const;
 
 export interface AppSettingsParsed {
   id: string;
@@ -13,12 +13,6 @@ export interface AppSettingsParsed {
   headless: boolean;
   minMatchScore: number;
   maxMinutesAgo: number;
-  autoApplyEnabled: boolean;
-  autoApplyDryRun: boolean;
-  autoApplyBatchSize: number;
-  autoApplyDelaySeconds: number;
-  autoApplyPollMinutes: number;
-  autoApplySkipDomains: string[];
   uiPort: number;
   updatedAt: Date;
 }
@@ -42,7 +36,6 @@ export async function getOrCreateSettings(): Promise<AppSettingsParsed> {
     ...settings,
     searchKeywords: parseJsonArray(settings.searchKeywords),
     searchLocations: parseJsonArray(settings.searchLocations),
-    autoApplySkipDomains: parseJsonArray(settings.autoApplySkipDomains),
   };
 }
 
@@ -68,6 +61,5 @@ export async function updateSettings(data: Record<string, unknown>): Promise<App
     ...settings,
     searchKeywords: parseJsonArray(settings.searchKeywords),
     searchLocations: parseJsonArray(settings.searchLocations),
-    autoApplySkipDomains: parseJsonArray(settings.autoApplySkipDomains),
   };
 }

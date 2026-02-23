@@ -26,7 +26,8 @@
       "avoid_industries": [],
       "preferred_tech_stack": [],
       "target_seniority": [],
-      "exclude_title_keywords": []
+      "exclude_title_keywords": [],
+      "include_title_patterns": []
     },
     "additional_info": {
       "open_to_contract": false,
@@ -34,6 +35,7 @@
       "min_salary": 0,
       "key_interests": []
     },
-    "dealbreakers": []
+    "dealbreakers": [],
+    "job_search_description": ""
   }
 }

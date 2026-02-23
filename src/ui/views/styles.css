@@ -1542,3 +1542,105 @@ header h1 {
   outline: none;
   border-color: #6ea8fe;
 }
+
+/* ─── Priority Badges ───────────────────────────────── */
+.priority-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.priority-urgent {
+  background: #dc3545;
+  color: #fff;
+}
+.priority-high {
+  background: #fd7e14;
+  color: #1a1a1a;
+}
+
+.enrichment-pending {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+  margin-right: 6px;
+}
+
+/* ─── Enrichment Detail Sections ────────────────────── */
+.action-items-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.action-items-list li {
+  padding: 6px 0 6px 14px;
+  border-left: 3px solid #6ea8fe;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.5;
+}
+
+.red-flags-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.red-flags-list li {
+  padding: 6px 0 6px 14px;
+  border-left: 3px solid #ff6b6b;
+  margin-bottom: 6px;
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.5;
+}
+
+.contact-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+.contact-person a {
+  color: #6ea8fe;
+}
+
+.detail-metadata {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.detail-chip {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  background: #1a1a1a;
+  color: #aaa;
+  border: 1px solid #2a2a2a;
+}
+
+.description-full {
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  font-size: 13px;
+  color: #bbb;
+  line-height: 1.6;
+  padding: 12px;
+  background: #0a0a0a;
+  border: 1px solid #222;
+  border-radius: 6px;
+}
+
+.stat-urgent .stat-value {
+  color: #dc3545;
+}
+

@@ -124,14 +124,6 @@ setupRouter.get('/setup', async (req: Request, res: Response) => {
     ui: {
       port: settings.uiPort,
     },
-    autoApply: {
-      enabled: settings.autoApplyEnabled,
-      dryRun: settings.autoApplyDryRun,
-      batchSize: settings.autoApplyBatchSize,
-      delaySeconds: settings.autoApplyDelaySeconds,
-      pollMinutes: settings.autoApplyPollMinutes,
-      skipDomains: settings.autoApplySkipDomains,
-    },
     profile: {
       preferences: {
         remote_only: profile.remoteOnly,
@@ -141,6 +133,7 @@ setupRouter.get('/setup', async (req: Request, res: Response) => {
         preferred_tech_stack: parseJsonArray(profile.preferredTechStack),
         target_seniority: parseJsonArray(profile.targetSeniority),
         exclude_title_keywords: parseJsonArray(profile.excludeTitleKeywords),
+        include_title_patterns: parseJsonArray(profile.includeTitlePatterns),
       },
       additional_info: {
         open_to_contract: profile.openToContract,
@@ -149,6 +142,7 @@ setupRouter.get('/setup', async (req: Request, res: Response) => {
         key_interests: parseJsonArray(profile.keyInterests),
       },
       dealbreakers: parseJsonArray(profile.dealbreakers),
+      job_search_description: profile.jobSearchDescription,
     },
   };
 
@@ -238,6 +232,8 @@ setupRouter.post('/setup/profile', async (req: Request, res: Response) => {
       preferred_tech_stack,
       target_seniority,
       exclude_title_keywords,
+      include_title_patterns,
+      job_search_description,
       open_to_contract,
       visa_sponsorship_needed,
       min_salary,
@@ -253,6 +249,8 @@ setupRouter.post('/setup/profile', async (req: Request, res: Response) => {
       preferredTechStack: toJsonArray(splitComma(preferred_tech_stack)),
       targetSeniority: toJsonArray(splitComma(target_seniority)),
       excludeTitleKeywords: toJsonArray(splitComma(exclude_title_keywords)),
+      includeTitlePatterns: toJsonArray(splitComma(include_title_patterns)),
+      jobSearchDescription: job_search_description || '',
       openToContract: open_to_contract === 'on',
       visaSponsorshipNeeded: visa_sponsorship_needed === 'on',
       minSalary: parseInt(min_salary, 10) || 0,
@@ -268,39 +266,6 @@ setupRouter.post('/setup/profile', async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : String(error),
     });
     res.status(500).send('Failed to save profile');
-  }
-});
-
-/**
- * POST /setup/auto-apply — Save auto-apply settings.
- */
-setupRouter.post('/setup/auto-apply', async (req: Request, res: Response) => {
-  try {
-    const {
-      autoApplyEnabled,
-      autoApplyDryRun,
-      autoApplyBatchSize,
-      autoApplyDelaySeconds,
-      autoApplyPollMinutes,
-      autoApplySkipDomains,
-    } = req.body;
-
-    await updateSettings({
-      autoApplyEnabled: autoApplyEnabled === 'on',
-      autoApplyDryRun: autoApplyDryRun === 'on',
-      autoApplyBatchSize: parseInt(autoApplyBatchSize, 10) || 5,
-      autoApplyDelaySeconds: parseInt(autoApplyDelaySeconds, 10) || 10,
-      autoApplyPollMinutes: parseInt(autoApplyPollMinutes, 10) || 2,
-      autoApplySkipDomains: splitComma(autoApplySkipDomains),
-    });
-
-    logger.info('Auto-apply settings saved');
-    res.redirect('/setup?saved=1');
-  } catch (error) {
-    logger.error('Failed to save auto-apply settings', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).send('Failed to save auto-apply settings');
   }
 });
 
@@ -332,14 +297,6 @@ setupRouter.post('/setup/import', settingsUpload.single('settings_file'), async 
       minMatchScore: raw.scraper?.minMatchScore ?? 50,
       maxMinutesAgo: raw.scraper?.maxMinutesAgo ?? 10,
       uiPort: raw.ui?.port ?? 3000,
-      ...(raw.autoApply ? {
-        autoApplyEnabled: raw.autoApply.enabled ?? false,
-        autoApplyDryRun: raw.autoApply.dryRun ?? true,
-        autoApplyBatchSize: raw.autoApply.batchSize ?? 5,
-        autoApplyDelaySeconds: raw.autoApply.delaySeconds ?? 10,
-        autoApplyPollMinutes: raw.autoApply.pollMinutes ?? 2,
-        autoApplySkipDomains: Array.isArray(raw.autoApply.skipDomains) ? raw.autoApply.skipDomains : [],
-      } : {}),
     });
 
     // Import profile preferences if present
@@ -352,6 +309,8 @@ setupRouter.post('/setup/import', settingsUpload.single('settings_file'), async 
         preferredTechStack: toJsonArray(raw.profile?.preferences?.preferred_tech_stack ?? []),
         targetSeniority: toJsonArray(raw.profile?.preferences?.target_seniority ?? []),
         excludeTitleKeywords: toJsonArray(raw.profile?.preferences?.exclude_title_keywords ?? []),
+        includeTitlePatterns: toJsonArray(raw.profile?.preferences?.include_title_patterns ?? []),
+        jobSearchDescription: raw.profile?.job_search_description ?? '',
         openToContract: raw.profile?.additional_info?.open_to_contract ?? false,
         visaSponsorshipNeeded: raw.profile?.additional_info?.visa_sponsorship_needed ?? false,
         minSalary: raw.profile?.additional_info?.min_salary ?? 0,
@@ -390,14 +349,6 @@ setupRouter.get('/setup/export', async (_req: Request, res: Response) => {
       minMatchScore: settings.minMatchScore,
       maxMinutesAgo: settings.maxMinutesAgo,
     },
-    autoApply: {
-      enabled: settings.autoApplyEnabled,
-      dryRun: settings.autoApplyDryRun,
-      batchSize: settings.autoApplyBatchSize,
-      delaySeconds: settings.autoApplyDelaySeconds,
-      pollMinutes: settings.autoApplyPollMinutes,
-      skipDomains: settings.autoApplySkipDomains,
-    },
     ui: {
       port: settings.uiPort,
     },
@@ -410,6 +361,7 @@ setupRouter.get('/setup/export', async (_req: Request, res: Response) => {
         preferred_tech_stack: parseJsonArray(profile.preferredTechStack),
         target_seniority: parseJsonArray(profile.targetSeniority),
         exclude_title_keywords: parseJsonArray(profile.excludeTitleKeywords),
+        include_title_patterns: parseJsonArray(profile.includeTitlePatterns),
       },
       additional_info: {
         open_to_contract: profile.openToContract,
@@ -418,6 +370,7 @@ setupRouter.get('/setup/export', async (_req: Request, res: Response) => {
         key_interests: parseJsonArray(profile.keyInterests),
       },
       dealbreakers: parseJsonArray(profile.dealbreakers),
+      job_search_description: profile.jobSearchDescription,
     },
   };
 

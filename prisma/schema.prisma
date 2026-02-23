@@ -26,19 +26,35 @@ model Job {
   keyMatches  String   @default("[]") // JSON array of matched skills/experience
 
   // Application Tracking
-  status      String   @default("new") // new/applying/applied/skipped/failed/reviewed/rejected
+  status      String   @default("new") // new/applied/reviewed/rejected
   notes       String?
+
+  // Enrichment
+  enrichmentStatus  String   @default("pending")  // pending/enriched/failed/skipped
+  enrichedAt        DateTime?
+  priority          String   @default("normal")    // urgent/high/normal/low
+  priorityReason    String   @default("")
+  actionItems       String   @default("[]")        // JSON array of action strings
+  redFlags          String   @default("[]")        // JSON array of warning strings
+  companyInfo       String   @default("")           // "About the company" text
+  applicantCount    String   @default("")           // "X applicants" or "Be among first 25"
+  seniorityLevel    String   @default("")           // metadata chip: "Entry level", "Mid-Senior", etc.
+  employmentType    String   @default("")           // metadata chip: "Full-time", "Contract", etc.
+  jobFunction       String   @default("")           // metadata chip: "Engineering", "IT", etc.
+  postedBy          String   @default("")           // poster name
+  postedByTitle     String   @default("")           // poster title/role
+  postedByProfile   String   @default("")           // poster LinkedIn profile URL
+  contactPeople     String   @default("[]")         // JSON array of {name, title, profileUrl}
 
   // Metadata
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
-  applicationLogs ApplicationLog[]
-
   @@index([status])
   @@index([matchScore])
   @@index([createdAt])
+  @@index([enrichmentStatus])
+  @@index([priority])
 }
 
 model ScraperState {
@@ -48,6 +64,17 @@ model ScraperState {
   errorCount    Int      @default(0)
   isRunning     Boolean  @default(false)
   pid           Int?
+}
+
+model EnricherState {
+  id            String   @id @default("singleton")
+  lastRunAt     DateTime @default(now())
+  lastSuccessAt DateTime?
+  errorCount    Int      @default(0)
+  isProcessing  Boolean  @default(false)
+  pid           Int?
+  totalEnriched Int      @default(0)
+  totalFailed   Int      @default(0)
 }
 
 // ─── Profile & Settings Models ───────────────────────────────
@@ -76,6 +103,10 @@ model UserProfile {
   availableStartDate String @default("")
   coverLetterNotes   String @default("")
 
+  // Enrichment AI Context
+  missionStatement  String @default("")  // Why you're looking, what excites you, ideal scenario
+  urgencySignals    String @default("")  // What should trigger "urgent" priority
+
   // Personal Summary (user-written elevator pitch)
   summary String @default("")
 
@@ -94,6 +125,8 @@ model UserProfile {
   preferredTechStack    String  @default("[]")
   targetSeniority       String  @default("[]")
   excludeTitleKeywords  String  @default("[]")
+  includeTitlePatterns  String  @default("[]")  // JSON array of whitelist title patterns
+  jobSearchDescription  String  @default("")    // Plain-text description of desired roles
   keyInterests          String  @default("[]")
   dealbreakers          String  @default("[]")
 
@@ -211,38 +244,6 @@ model DemographicAnswer {
   @@index([profileId])
 }
 
-model ApplierState {
-  id            String    @id @default("singleton")
-  lastRunAt     DateTime  @default(now())
-  lastSuccessAt DateTime?
-  errorCount    Int       @default(0)
-  isRunning     Boolean   @default(false)
-  pid           Int?
-  totalApplied  Int       @default(0)
-  totalSkipped  Int       @default(0)
-  totalFailed   Int       @default(0)
-}
-
-model ApplicationLog {
-  id        String @id @default(uuid())
-  jobId     String
-  job       Job    @relation(fields: [jobId], references: [id])
-
-  status    String
-  reason    String @default("")
-  formType  String @default("")
-  fieldsFilledCount Int @default(0)
-  aiCallsUsed       Int @default(0)
-  durationMs        Int @default(0)
-  screenshotPath    String @default("")
-
-  createdAt DateTime @default(now())
-
-  @@index([jobId])
-  @@index([status])
-  @@index([createdAt])
-}
-
 model AppSettings {
   id String @id @default("singleton")
 
@@ -256,14 +257,6 @@ model AppSettings {
   headless        Boolean @default(true)
   minMatchScore   Int     @default(50)
   maxMinutesAgo   Int     @default(10)
-
-  // Auto-Apply
-  autoApplyEnabled      Boolean @default(false)
-  autoApplyDryRun       Boolean @default(true)
-  autoApplyBatchSize    Int     @default(5)
-  autoApplyDelaySeconds Int     @default(10)
-  autoApplyPollMinutes  Int     @default(2)
-  autoApplySkipDomains  String  @default("[]")
 
   // UI
   uiPort Int @default(3000)

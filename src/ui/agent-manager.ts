@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { getScraperState, clearScraperPid, setScraperPid } from '../database/queries';
+import { getScraperState, clearScraperPid } from '../database/queries';
 import { validateConfig } from '../config';
 import { logger } from '../logger';
 
@@ -97,16 +97,15 @@ export async function startAgent(): Promise<{ pid: number }> {
     throw new Error('Failed to spawn agent process');
   }
 
-  // Write PID to DB immediately so status checks and duplicate-start guards work
-  // before the agent process has finished initializing.
-  await setScraperPid(pid);
+  // Don't write PID to DB here — the agent process writes its own PID on startup.
+  // Writing the npx wrapper PID here causes a race condition: the agent sees the
+  // wrapper PID in the DB, thinks another agent is running, and exits immediately.
 
   // Wait briefly and verify the process is alive
-  await new Promise((r) => setTimeout(r, 500));
+  await new Promise((r) => setTimeout(r, 1500));
 
   if (!isProcessAlive(pid)) {
-    await clearScraperPid();
-    throw new Error('Agent process died immediately after spawn. Check logs for errors.');
+    throw new Error('Agent process died immediately after spawn. Check logs/agent.log for errors.');
   }
 
   logger.info('Scraper agent started', { pid });

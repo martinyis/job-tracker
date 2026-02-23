@@ -86,8 +86,10 @@ export async function runScrapeCycle(): Promise<void> {
     const profileData = await getProfileForAI();
     const preferences: ProfilePreferences = {
       excludeTitleKeywords: profileData.excludeTitleKeywords,
+      includeTitlePatterns: profileData.includeTitlePatterns,
       targetSeniority: profileData.targetSeniority,
       preferredTechStack: profileData.preferredTechStack,
+      jobSearchDescription: profileData.jobSearchDescription,
     };
 
     // Launch browser (loads LinkedIn cookies if available)

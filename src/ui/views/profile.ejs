@@ -159,6 +159,34 @@
           <span class="hint">Jobs with any of these words in the title are instantly rejected before the AI sees them</span>
         </div>
 
+        <div class="form-group">
+          <label for="includeTitlePatterns">Include Title Patterns <span class="hint">(comma-separated)</span></label>
+          <textarea id="includeTitlePatterns" name="includeTitlePatterns" rows="3"
+            placeholder="software engineer, developer, frontend, backend, full stack, mobile, web developer, AI engineer"><%= parseJsonArray(profile.includeTitlePatterns).join(', ') %></textarea>
+          <span class="hint">Only job titles containing at least one of these patterns will be considered. Leave empty to disable this filter.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="jobSearchDescription">What Kind of Roles Are You Looking For?</label>
+          <textarea id="jobSearchDescription" name="jobSearchDescription" rows="4"
+            placeholder="Example: I'm a new CS graduate looking for entry-level roles where I'll be building software products -- web apps, mobile apps, AI products, APIs, etc. I want to write code and ship features, not do IT support or sales."><%= profile.jobSearchDescription %></textarea>
+          <span class="hint">Describe in plain English what kind of work you want. The AI uses this to decide if a job title is relevant to you. Leave empty to use default skill-based matching.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="missionStatement">Your Mission / What Excites You</label>
+          <textarea id="missionStatement" name="missionStatement" rows="4"
+            placeholder="Example: I'm passionate about startups building AI agents and AI products. I want to be on a small team where I'm building the product hands-on. I love direct access to founders and hiring managers, and I thrive in environments where I can see my work make an immediate impact."><%= profile.missionStatement %></textarea>
+          <span class="hint">What motivates you beyond job type. The AI uses this to identify jobs that align with your personal goals and passions, not just your skills.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="urgencySignals">Urgency Signals</label>
+          <textarea id="urgencySignals" name="urgencySignals" rows="4"
+            placeholder="Example: Direct contact info in the posting (social media, email, 'DM me'). Founding engineer or first-hire roles. Startup building AI/ML products. The poster is the hiring manager, not a recruiter. Small team where I'd have outsized impact."><%= profile.urgencySignals %></textarea>
+          <span class="hint">What should make the AI flag a job as "urgent" -- situations where you should act immediately. Be specific about what matters to you.</span>
+        </div>
+
         <hr class="form-divider">
 
         <div class="form-group">
@@ -541,7 +569,7 @@
     <!-- ═══════════════════════════════════════════════════════ -->
     <section class="setup-section" id="application-info">
       <h2>Application Information</h2>
-      <p class="section-desc">Additional fields commonly requested on job applications. These are used by the auto-apply agent to fill forms.</p>
+      <p class="section-desc">Additional fields commonly requested on job applications.</p>
 
       <form method="POST" action="/profile/application-info" class="setup-form">
         <div class="form-row">
@@ -597,7 +625,7 @@
       <p class="section-desc">Your answers to common EEO compliance and legal questions on job applications. All fields are voluntary.</p>
 
       <div class="demographic-note">
-        These answers are stored locally only and used by the auto-apply agent to fill application forms. They are never shared with the AI model. You can leave any field blank to skip it.
+        These answers are stored locally only and never shared with the AI model. You can leave any field blank to skip it.
       </div>
 
       <form method="POST" action="/profile/demographics" class="setup-form">

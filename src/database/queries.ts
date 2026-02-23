@@ -17,7 +17,7 @@ export interface JobInput {
 }
 
 /** Possible application status values */
-export type JobStatus = 'new' | 'applying' | 'applied' | 'skipped' | 'failed' | 'reviewed' | 'rejected';
+export type JobStatus = 'new' | 'applied' | 'reviewed' | 'rejected';
 
 /**
  * Checks if a job with the given LinkedIn ID already exists in the database.
@@ -178,10 +178,13 @@ export async function saveJobsBatch(inputs: JobInput[]) {
  * Results are sorted by match score (desc) then creation date (desc).
  */
 export async function getJobs(status?: JobStatus) {
-  return prisma.job.findMany({
+  const jobs = await prisma.job.findMany({
     where: status ? { status } : undefined,
-    orderBy: [{ matchScore: 'desc' }, { createdAt: 'desc' }],
+    orderBy: { createdAt: 'desc' },
   });
+
+  const priorityRank: Record<string, number> = { urgent: 1, high: 2, normal: 3, low: 4 };
+  return jobs.sort((a, b) => (priorityRank[a.priority] ?? 3) - (priorityRank[b.priority] ?? 3));
 }
 
 /**
@@ -215,7 +218,7 @@ export async function updateJobNotes(id: string, notes: string) {
  * Returns summary statistics for the dashboard.
  */
 export async function getStats() {
-  const [total, byStatus, avgScore] = await Promise.all([
+  const [total, byStatus, avgScore, byPriority, pendingEnrichment] = await Promise.all([
     prisma.job.count(),
     prisma.job.groupBy({
       by: ['status'],
@@ -224,6 +227,13 @@ export async function getStats() {
     prisma.job.aggregate({
       _avg: { matchScore: true },
     }),
+    prisma.job.groupBy({
+      by: ['priority'],
+      _count: { id: true },
+    }),
+    prisma.job.count({
+      where: { enrichmentStatus: 'pending' },
+    }),
   ]);
 
   const statusCounts: Record<string, number> = {};
@@ -231,9 +241,16 @@ export async function getStats() {
     statusCounts[row.status] = row._count.id;
   }
 
+  const priorityCounts: Record<string, number> = {};
+  for (const row of byPriority) {
+    priorityCounts[row.priority] = row._count.id;
+  }
+
   return {
     totalJobs: total,
     statusCounts,
+    priorityCounts,
+    pendingEnrichment,
     averageScore: Math.round(avgScore._avg.matchScore ?? 0),
   };
 }
@@ -332,3 +349,4 @@ export async function clearScraperPid() {
     create: { id: 'singleton' },
   });
 }
+

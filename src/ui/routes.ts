@@ -10,13 +10,34 @@ import {
   getScraperState,
   JobStatus,
 } from '../database/queries';
+import { getEnrichmentQueueSize } from '../database/enrichment-queries';
 import { loadCookies, areCookiesValid } from '../scraper/linkedin-auth';
 import { getAgentStatus, startAgent, stopAgent } from './agent-manager';
+import { getEnricherStatus, startEnricher, stopEnricher } from './enricher-manager';
 import { logger } from '../logger';
 
 export const router = Router();
 
-const VALID_STATUSES: JobStatus[] = ['new', 'applying', 'applied', 'skipped', 'failed', 'reviewed', 'rejected'];
+const VALID_STATUSES: JobStatus[] = ['new', 'applied', 'reviewed', 'rejected'];
+
+function safeParseJsonArray(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function safeParseJson<T>(value: string, fallback: T): T {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
 
 /**
  * GET / — Main jobs dashboard.
@@ -27,27 +48,26 @@ router.get('/', async (req: Request, res: Response) => {
     const statusFilter = req.query.status as JobStatus | undefined;
     const validFilter = statusFilter && VALID_STATUSES.includes(statusFilter) ? statusFilter : undefined;
 
-    const [jobs, stats, scraperState, agentStatus] = await Promise.all([
+    const [jobs, stats, scraperState, agentStatus, enricherStatus, enrichmentQueueSize] = await Promise.all([
       getJobs(validFilter),
       getStats(),
       getScraperState(),
       getAgentStatus(),
+      getEnricherStatus(),
+      getEnrichmentQueueSize(),
     ]);
 
     // Check LinkedIn session status
     const cookies = loadCookies();
     const linkedinSessionValid = cookies !== null && areCookiesValid(cookies);
 
-    // Parse keyMatches JSON for each job
+    // Parse JSON fields for each job
     const parsedJobs = jobs.map((job) => ({
       ...job,
-      keyMatchesParsed: (() => {
-        try {
-          return JSON.parse(job.keyMatches) as string[];
-        } catch {
-          return [];
-        }
-      })(),
+      keyMatchesParsed: safeParseJsonArray(job.keyMatches),
+      actionItemsParsed: safeParseJsonArray(job.actionItems),
+      redFlagsParsed: safeParseJsonArray(job.redFlags),
+      contactPeopleParsed: safeParseJson(job.contactPeople, []),
     }));
 
     const agentError = req.query.agentError as string | undefined;
@@ -57,6 +77,8 @@ router.get('/', async (req: Request, res: Response) => {
       stats,
       scraperState,
       agentStatus,
+      enricherStatus,
+      enrichmentQueueSize,
       agentError,
       linkedinSessionValid,
       currentFilter: validFilter || 'all',
@@ -211,8 +233,6 @@ router.get('/agent/status', async (_req: Request, res: Response) => {
  * GET /agent/logs — Returns the last N lines of the agent log file.
  * Query params: lines (default 150)
  */
-const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
-
 router.get('/agent/logs', (_req: Request, res: Response) => {
   try {
     const maxLines = Math.min(Number(_req.query.lines) || 150, 500);
@@ -244,3 +264,71 @@ router.get('/agent/logs', (_req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to read agent logs' });
   }
 });
+
+// ─── Enricher Agent Control ────────────────────────────
+
+router.post('/enricher/start', async (_req: Request, res: Response) => {
+  try {
+    await startEnricher();
+    res.redirect('/');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to start enricher', { error: message });
+    res.redirect(`/?agentError=${encodeURIComponent(message)}`);
+  }
+});
+
+router.post('/enricher/stop', async (_req: Request, res: Response) => {
+  try {
+    await stopEnricher();
+    res.redirect('/');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to stop enricher', { error: message });
+    res.redirect(`/?agentError=${encodeURIComponent(message)}`);
+  }
+});
+
+router.get('/enricher/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await getEnricherStatus();
+    res.json(status);
+  } catch (error) {
+    logger.error('Error fetching enricher status', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: 'Failed to fetch enricher status' });
+  }
+});
+
+router.get('/enricher/logs', (_req: Request, res: Response) => {
+  try {
+    const maxLines = Math.min(Number(_req.query.lines) || 150, 500);
+    const logPath = path.resolve('./logs/enricher.log');
+
+    if (!fs.existsSync(logPath)) {
+      res.json({ lines: [], truncated: false });
+      return;
+    }
+
+    const stat = fs.statSync(logPath);
+    const readSize = Math.min(stat.size, 65536);
+    const fd = fs.openSync(logPath, 'r');
+    const buffer = Buffer.alloc(readSize);
+    fs.readSync(fd, buffer, 0, readSize, Math.max(0, stat.size - readSize));
+    fs.closeSync(fd);
+
+    const content = buffer.toString('utf-8');
+    const allLines = content.split('\n').filter((l) => l.length > 0);
+    const truncated = allLines.length > maxLines || stat.size > readSize;
+    const lines = allLines.slice(-maxLines).map((line) => line.replace(ANSI_REGEX, ''));
+
+    res.json({ lines, truncated });
+  } catch (error) {
+    logger.error('Error reading enricher logs', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: 'Failed to read enricher logs' });
+  }
+});
+
