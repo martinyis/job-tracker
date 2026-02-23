@@ -59,17 +59,6 @@ export async function waitNavigation(): Promise<void> {
 }
 
 /**
- * Waits for a random click delay (1-3s by default).
- */
-export async function waitClick(): Promise<void> {
-  const delay = randomDelay(
-    config.scraper.clickDelay.min,
-    config.scraper.clickDelay.max,
-  );
-  await new Promise((resolve) => setTimeout(resolve, delay));
-}
-
-/**
  * Browser launch options with stealth settings applied.
  */
 export function getBrowserLaunchOptions() {

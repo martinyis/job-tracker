@@ -38,16 +38,16 @@ export async function getOrCreateProfileSummary(): Promise<string> {
 
   // Find primary resume document
   const resumeDoc = await getPrimaryResume();
-  const resumePath = resumeDoc
-    ? path.resolve('./data', resumeDoc.storagePath)
-    : path.resolve('./data/resume.pdf'); // fallback for legacy location
+  if (!resumeDoc) {
+    throw new Error('No resume found. Upload a resume via the Profile page.');
+  }
+  const resumePath = path.resolve('./data', resumeDoc.storagePath);
 
   if (!fs.existsSync(resumePath)) {
     throw new Error(`Resume not found at ${resumePath}. Upload a resume via the Profile page.`);
   }
   const resumeText = await extractPdfText(resumePath);
 
-  // Get profile context from DB instead of settings.json
   const profileData = await getProfileForAI();
   const additionalContext = JSON.stringify(profileData, null, 2);
 
@@ -85,7 +85,6 @@ export async function getOrCreateProfileSummary(): Promise<string> {
     throw new Error('Profile summary is not valid JSON. Please check model response.');
   }
 
-  // Cache in DB instead of writing to disk
   await setProfileSummaryCache(cleaned);
 
   logger.info('Profile summary generated and cached');

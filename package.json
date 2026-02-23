@@ -15,7 +15,6 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "migrate-data": "tsx src/migrate-to-db.ts",
     "generate-skills": "tsx src/generate-skills.ts"
   },
   "dependencies": {

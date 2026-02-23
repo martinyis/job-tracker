@@ -89,12 +89,10 @@ async function main(): Promise<void> {
   // 1. Gather all data sources
   // Resume PDF text
   const resumeDoc = await getPrimaryResume();
-  const resumePath = resumeDoc
-    ? path.resolve('./data', resumeDoc.storagePath)
-    : path.resolve('./data/resume.pdf');
+  const resumePath = resumeDoc ? path.resolve('./data', resumeDoc.storagePath) : null;
 
   let resumeText = '';
-  if (fs.existsSync(resumePath)) {
+  if (resumePath && fs.existsSync(resumePath)) {
     const buffer = fs.readFileSync(resumePath);
     const data = await pdfParse(buffer);
     resumeText = data.text;
@@ -159,7 +157,7 @@ async function main(): Promise<void> {
     messages: [{ role: 'user', content: prompt }],
   }, { timeout: 120_000 });
 
-  const msg = response.choices[0]?.message as Record<string, unknown>;
+  const msg = response.choices[0]?.message as unknown as Record<string, unknown>;
   const content = (msg?.content ?? msg?.reasoning_content ?? '') as string;
   if (!content) {
     logger.error('AI returned no response', { message: JSON.stringify(msg) });

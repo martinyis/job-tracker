@@ -7,30 +7,20 @@ import {
   getOrCreateProfile,
   updateProfile,
   invalidateProfileSummaryCache,
-  getWorkExperience,
   addWorkExperience,
   updateWorkExperience,
   deleteWorkExperience,
-  getEducation,
   addEducation,
   updateEducation,
   deleteEducation,
-  getSkills,
   addSkill,
   deleteSkill,
-  getReferences,
-  addReference,
-  updateReference,
-  deleteReference,
   getDocuments,
   addDocument,
   deleteDocument,
-  getDemographicAnswers,
-  upsertDemographicAnswer,
   parseJsonArray,
   toJsonArray,
 } from '../database/profile-queries';
-import { DEMOGRAPHIC_CATEGORIES } from '../constants/demographic-categories';
 
 export const profileRouter = Router();
 
@@ -81,19 +71,10 @@ function str(value: unknown): string {
 profileRouter.get('/profile', async (_req: Request, res: Response) => {
   try {
     const profile = await getOrCreateProfile();
-    const demographicAnswers = await getDemographicAnswers();
-
-    // Build a map of category -> { answer, notes } for the template
-    const demographicMap: Record<string, { answer: string; notes: string }> = {};
-    for (const a of demographicAnswers) {
-      demographicMap[a.category] = { answer: a.answer, notes: a.notes };
-    }
 
     res.render('profile', {
       profile,
       parseJsonArray,
-      demographicCategories: DEMOGRAPHIC_CATEGORIES,
-      demographicMap,
     });
   } catch (error) {
     logger.error('Error rendering profile page', {
@@ -103,7 +84,38 @@ profileRouter.get('/profile', async (_req: Request, res: Response) => {
   }
 });
 
-// ─── Personal Info ────────────────────────────────────────
+// ─── Personal Info (inline edit API) ─────────────────────
+
+const PERSONAL_FIELDS = new Set([
+  'firstName', 'lastName', 'email', 'phone',
+  'linkedinUrl', 'website', 'city', 'state',
+  'country', 'zipCode', 'summary',
+]);
+
+profileRouter.patch('/api/profile/personal', async (req: Request, res: Response) => {
+  try {
+    const data: Record<string, string> = {};
+    for (const [key, value] of Object.entries(req.body)) {
+      if (PERSONAL_FIELDS.has(key) && typeof value === 'string') {
+        data[key] = value;
+      }
+    }
+    if (Object.keys(data).length === 0) {
+      res.json({ ok: false, error: 'No valid fields provided' });
+      return;
+    }
+    await updateProfile(data);
+    logger.info('Profile personal info updated (inline)', { fields: Object.keys(data) });
+    res.json({ ok: true });
+  } catch (error) {
+    logger.error('Failed to update personal info (inline)', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.json({ ok: false, error: 'Failed to save' });
+  }
+});
+
+// ─── Personal Info (form POST) ───────────────────────────
 
 profileRouter.post('/profile/personal', async (req: Request, res: Response) => {
   try {
@@ -299,58 +311,6 @@ profileRouter.post('/profile/skill/:id/delete', async (req: Request, res: Respon
   }
 });
 
-// ─── References CRUD ──────────────────────────────────────
-
-profileRouter.post('/profile/reference', async (req: Request, res: Response) => {
-  try {
-    await addReference({
-      name: str(req.body.name),
-      relationship: str(req.body.relationship),
-      company: str(req.body.company),
-      email: str(req.body.email),
-      phone: str(req.body.phone),
-      notes: str(req.body.notes),
-    });
-    res.redirect('/profile#references');
-  } catch (error) {
-    logger.error('Failed to add reference', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).send('Failed to save');
-  }
-});
-
-profileRouter.post('/profile/reference/:id', async (req: Request, res: Response) => {
-  try {
-    await updateReference(req.params.id as string, {
-      name: str(req.body.name),
-      relationship: str(req.body.relationship),
-      company: str(req.body.company),
-      email: str(req.body.email),
-      phone: str(req.body.phone),
-      notes: str(req.body.notes),
-    });
-    res.redirect('/profile#references');
-  } catch (error) {
-    logger.error('Failed to update reference', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).send('Failed to save');
-  }
-});
-
-profileRouter.post('/profile/reference/:id/delete', async (req: Request, res: Response) => {
-  try {
-    await deleteReference(req.params.id as string);
-    res.redirect('/profile#references');
-  } catch (error) {
-    logger.error('Failed to delete reference', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).send('Failed to delete');
-  }
-});
-
 // ─── Document Upload & Management ─────────────────────────
 
 profileRouter.post('/profile/document', documentUpload.single('document'), async (req: Request, res: Response) => {
@@ -447,49 +407,4 @@ profileRouter.post('/profile/document/:id/primary', async (req: Request, res: Re
   }
 });
 
-// ─── Application Info (additional profile fields) ────────
 
-profileRouter.post('/profile/application-info', async (req: Request, res: Response) => {
-  try {
-    await updateProfile({
-      preferredName: str(req.body.preferredName),
-      pronouns: str(req.body.pronouns),
-      dateOfBirth: str(req.body.dateOfBirth),
-      yearsOfExperience: parseInt(str(req.body.yearsOfExperience), 10) || 0,
-      desiredSalary: str(req.body.desiredSalary),
-      availableStartDate: str(req.body.availableStartDate),
-      coverLetterNotes: str(req.body.coverLetterNotes),
-    });
-    logger.info('Application info updated');
-    res.redirect('/profile#application-info');
-  } catch (error) {
-    logger.error('Failed to update application info', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).send('Failed to save');
-  }
-});
-
-// ─── Demographic Answers ─────────────────────────────────
-
-profileRouter.post('/profile/demographics', async (req: Request, res: Response) => {
-  try {
-    for (const cat of DEMOGRAPHIC_CATEGORIES) {
-      const answer = str(req.body[`demographic_${cat.id}`]);
-      const customAnswer = str(req.body[`demographic_${cat.id}_custom`]);
-      const notes = str(req.body[`demographic_${cat.id}_notes`]);
-
-      // Use custom answer if the dropdown was set to "__custom__"
-      const finalAnswer = answer === '__custom__' ? customAnswer : answer;
-
-      await upsertDemographicAnswer(cat.id, finalAnswer, notes);
-    }
-    logger.info('Demographic answers updated');
-    res.redirect('/profile#demographics');
-  } catch (error) {
-    logger.error('Failed to update demographic answers', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    res.status(500).send('Failed to save');
-  }
-});

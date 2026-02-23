@@ -10,7 +10,6 @@ import {
   updateProfile,
   invalidateProfileSummaryCache,
   addDocument,
-  getPrimaryResume,
   parseJsonArray,
   toJsonArray,
 } from '../database/profile-queries';
@@ -77,11 +76,35 @@ function readApiKey(): string {
 }
 
 /**
- * Writes the API key to .env file (keeping only secrets there).
+ * Writes the API key to .env file, preserving all other env vars.
  */
 function saveApiKey(apiKey: string): void {
-  const envContent = `# NVIDIA API Key (only secret kept in .env)\nNVIDIA_API_KEY=${apiKey}\n`;
-  fs.writeFileSync(ENV_PATH, envContent, 'utf-8');
+  let lines: string[] = [];
+  if (fs.existsSync(ENV_PATH)) {
+    lines = fs.readFileSync(ENV_PATH, 'utf-8').split('\n');
+  }
+
+  let found = false;
+  lines = lines.map((line) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('NVIDIA_API_KEY=') || trimmed.startsWith('NVIDIA_API_KEY =')) {
+      found = true;
+      return `NVIDIA_API_KEY=${apiKey}`;
+    }
+    return line;
+  });
+
+  if (!found) {
+    lines.push(`NVIDIA_API_KEY=${apiKey}`);
+  }
+
+  // Remove trailing empty lines, add single newline at end
+  while (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+    lines.pop();
+  }
+  lines.push('');
+
+  fs.writeFileSync(ENV_PATH, lines.join('\n'), 'utf-8');
 }
 
 /**
@@ -105,21 +128,13 @@ setupRouter.get('/setup', async (req: Request, res: Response) => {
   const apiKey = readApiKey();
   const settings = await getOrCreateSettings();
   const profile = await getOrCreateProfile();
-  const hasResume = !!(await getPrimaryResume()) || fs.existsSync(path.resolve('./data/resume.pdf'));
-  const hasSummary = !!profile.profileSummaryCache;
 
-  // Build a legacy-compatible settings object for the template
-  const legacySettings = {
+  // Build a structured settings object for the template
+  const templateSettings = {
     search: {
       keywords: settings.searchKeywords,
       locations: settings.searchLocations,
       geoId: settings.geoId,
-    },
-    scraper: {
-      intervalMinutes: settings.intervalMinutes,
-      headless: settings.headless,
-      minMatchScore: settings.minMatchScore,
-      maxMinutesAgo: settings.maxMinutesAgo,
     },
     ui: {
       port: settings.uiPort,
@@ -143,14 +158,14 @@ setupRouter.get('/setup', async (req: Request, res: Response) => {
       },
       dealbreakers: parseJsonArray(profile.dealbreakers),
       job_search_description: profile.jobSearchDescription,
+      missionStatement: profile.missionStatement,
+      urgencySignals: profile.urgencySignals,
     },
   };
 
   res.render('setup', {
     apiKey,
-    settings: legacySettings,
-    hasResume,
-    hasSummary,
+    settings: templateSettings,
     saved: req.query.saved === '1',
   });
 });
@@ -164,22 +179,16 @@ setupRouter.post('/setup/config', async (req: Request, res: Response) => {
       NVIDIA_API_KEY,
       JOB_KEYWORDS,
       JOB_LOCATIONS,
-      SCRAPE_INTERVAL_MINUTES,
-      HEADLESS_MODE,
-      MIN_MATCH_SCORE,
       UI_PORT,
     } = req.body;
 
     // Save API key to .env
     saveApiKey(NVIDIA_API_KEY || '');
 
-    // Save search/scraper/UI settings to DB
+    // Save search/UI settings to DB
     await updateSettings({
       searchKeywords: splitComma(JOB_KEYWORDS),
       searchLocations: splitComma(JOB_LOCATIONS),
-      intervalMinutes: parseInt(SCRAPE_INTERVAL_MINUTES, 10) || 2,
-      headless: HEADLESS_MODE === 'true',
-      minMatchScore: parseInt(MIN_MATCH_SCORE, 10) || 50,
       uiPort: parseInt(UI_PORT, 10) || 3000,
     });
 
@@ -234,6 +243,8 @@ setupRouter.post('/setup/profile', async (req: Request, res: Response) => {
       exclude_title_keywords,
       include_title_patterns,
       job_search_description,
+      missionStatement,
+      urgencySignals,
       open_to_contract,
       visa_sponsorship_needed,
       min_salary,
@@ -251,6 +262,8 @@ setupRouter.post('/setup/profile', async (req: Request, res: Response) => {
       excludeTitleKeywords: toJsonArray(splitComma(exclude_title_keywords)),
       includeTitlePatterns: toJsonArray(splitComma(include_title_patterns)),
       jobSearchDescription: job_search_description || '',
+      missionStatement: missionStatement || '',
+      urgencySignals: urgencySignals || '',
       openToContract: open_to_contract === 'on',
       visaSponsorshipNeeded: visa_sponsorship_needed === 'on',
       minSalary: parseInt(min_salary, 10) || 0,
@@ -294,7 +307,6 @@ setupRouter.post('/setup/import', settingsUpload.single('settings_file'), async 
       geoId: raw.search?.geoId || '103644278',
       intervalMinutes: raw.scraper?.intervalMinutes ?? 2,
       headless: raw.scraper?.headless ?? true,
-      minMatchScore: raw.scraper?.minMatchScore ?? 50,
       maxMinutesAgo: raw.scraper?.maxMinutesAgo ?? 10,
       uiPort: raw.ui?.port ?? 3000,
     });
@@ -346,7 +358,6 @@ setupRouter.get('/setup/export', async (_req: Request, res: Response) => {
     scraper: {
       intervalMinutes: settings.intervalMinutes,
       headless: settings.headless,
-      minMatchScore: settings.minMatchScore,
       maxMinutesAgo: settings.maxMinutesAgo,
     },
     ui: {

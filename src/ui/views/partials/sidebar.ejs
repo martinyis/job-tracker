@@ -1,0 +1,148 @@
+<%# CyFocus-style sidebar -- included in all pages %>
+<%# Expects: activePage (string) %>
+
+<!-- Mobile Header -->
+<div class="cy-mobile-header">
+  <button class="cy-mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Open menu">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+  </button>
+  <span class="cy-mobile-brand">Job Tracker</span>
+  <div style="width: 36px;"></div>
+</div>
+
+<!-- Mobile overlay -->
+<div class="cy-mobile-overlay" id="mobile-overlay" onclick="toggleMobileSidebar()"></div>
+
+<!-- Sidebar -->
+<aside class="cy-sidebar" id="sidebar">
+
+  <!-- Brand -->
+  <a href="/" class="cy-sidebar-brand">
+    <div class="cy-sidebar-brand-icon">JT</div>
+    <span class="cy-sidebar-brand-text">Job <span>Tracker</span></span>
+  </a>
+
+  <!-- Navigation -->
+  <nav class="cy-sidebar-nav">
+    <span class="cy-sidebar-section">Main</span>
+
+    <a href="/" class="cy-sidebar-link <%= activePage === 'dashboard' ? 'active' : '' %>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+
+    <a href="/jobs" class="cy-sidebar-link <%= activePage === 'jobs' ? 'active' : '' %>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+      Jobs
+    </a>
+
+    <span class="cy-sidebar-section">Manage</span>
+
+    <a href="/profile" class="cy-sidebar-link <%= activePage === 'profile' ? 'active' : '' %>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Profile
+    </a>
+
+    <a href="/setup" class="cy-sidebar-link <%= activePage === 'settings' ? 'active' : '' %>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      Settings
+    </a>
+
+    <a href="/control" class="cy-sidebar-link <%= activePage === 'control' ? 'active' : '' %>">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+      Control Panel
+    </a>
+
+    <!-- Spacer to push help + agents down -->
+    <div style="flex: 1;"></div>
+
+    <!-- Help -->
+    <a href="https://github.com" target="_blank" rel="noopener noreferrer" class="cy-sidebar-link">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Help & Docs
+    </a>
+  </nav>
+
+  <!-- Agent status dots -->
+  <div class="cy-sidebar-agents">
+    <div class="cy-sidebar-agent-row">
+      <span class="cy-sidebar-agent-label">
+        <span class="cy-agent-dot" id="sidebar-scraper-dot"></span>
+        Scraper
+      </span>
+      <span class="cy-agent-status-text stopped" id="sidebar-scraper-text">--</span>
+    </div>
+    <div class="cy-sidebar-agent-row">
+      <span class="cy-sidebar-agent-label">
+        <span class="cy-agent-dot" id="sidebar-enricher-dot"></span>
+        Enricher
+      </span>
+      <span class="cy-agent-status-text stopped" id="sidebar-enricher-text">--</span>
+    </div>
+  </div>
+
+  <!-- User avatar at bottom (CyFocus style) -->
+  <div class="cy-sidebar-footer">
+    <div class="cy-sidebar-user">
+      <div class="cy-sidebar-avatar">JT</div>
+      <div class="cy-sidebar-user-info">
+        <div class="cy-sidebar-user-name">Job Tracker</div>
+        <div class="cy-sidebar-user-role">Local Agent</div>
+      </div>
+    </div>
+  </div>
+
+</aside>
+
+<script>
+// Mobile sidebar toggle
+function toggleMobileSidebar() {
+  var sidebar = document.getElementById('sidebar');
+  var overlay = document.getElementById('mobile-overlay');
+  sidebar.classList.toggle('mobile-open');
+  overlay.classList.toggle('active');
+}
+
+// Refresh sidebar agent dots every 5 seconds
+(function() {
+  function updateDot(dotEl, textEl, running) {
+    if (running) {
+      dotEl.classList.add('active');
+      textEl.textContent = 'Running';
+      textEl.className = 'cy-agent-status-text running';
+    } else {
+      dotEl.classList.remove('active');
+      textEl.textContent = 'Stopped';
+      textEl.className = 'cy-agent-status-text stopped';
+    }
+  }
+
+  async function refreshSidebarStatus() {
+    try {
+      var scraperRes = await fetch('/agent/status');
+      if (scraperRes.ok) {
+        var s = await scraperRes.json();
+        updateDot(
+          document.getElementById('sidebar-scraper-dot'),
+          document.getElementById('sidebar-scraper-text'),
+          s.running
+        );
+      }
+    } catch (e) {}
+    try {
+      var enricherRes = await fetch('/enricher/status');
+      if (enricherRes.ok) {
+        var e = await enricherRes.json();
+        updateDot(
+          document.getElementById('sidebar-enricher-dot'),
+          document.getElementById('sidebar-enricher-text'),
+          e.running
+        );
+      }
+    } catch (e) {}
+  }
+
+  refreshSidebarStatus();
+  setInterval(refreshSidebarStatus, 5000);
+})();
+</script>

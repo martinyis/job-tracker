@@ -1,5 +1,4 @@
 import dotenv from 'dotenv';
-import path from 'path';
 import { getOrCreateSettings } from './database/settings-queries';
 
 dotenv.config();
@@ -27,21 +26,18 @@ export const config = {
   scraper: {
     intervalMinutes: 2,
     headless: true,
-    minMatchScore: 50,
     maxMinutesAgo: 10,
     maxConsecutiveErrors: 5,
     errorPauseMinutes: 30,
     navigationDelay: { min: 2000, max: 5000 },
     clickDelay: { min: 1000, max: 3000 },
-    maxConcurrentMatches: 5,
-    maxDescriptionLength: 2000,
   },
   ui: {
     port: 3000,
   },
-  paths: {
-    linkedinCookies: path.resolve('./data/linkedin-cookies.json'),
-    logs: path.resolve('./logs/app.log'),
+  telegram: {
+    botToken: '',
+    chatId: '',
   },
 };
 
@@ -52,6 +48,8 @@ export const config = {
 export async function initConfig(): Promise<void> {
   dotenv.config({ override: true });
   config.nvidia.apiKey = process.env.NVIDIA_API_KEY || '';
+  config.telegram.botToken = process.env.TELEGRAM_BOT_TOKEN || '';
+  config.telegram.chatId = process.env.TELEGRAM_CHAT_ID || '';
 
   const settings = await getOrCreateSettings();
 
@@ -61,7 +59,6 @@ export async function initConfig(): Promise<void> {
 
   config.scraper.intervalMinutes = settings.intervalMinutes;
   config.scraper.headless = settings.headless;
-  config.scraper.minMatchScore = settings.minMatchScore;
   config.scraper.maxMinutesAgo = settings.maxMinutesAgo;
 
   config.ui.port = settings.uiPort;

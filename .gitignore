@@ -4,11 +4,7 @@ dist/
 prisma/dev.db
 prisma/dev.db-journal
 logs/*.log
-data/resume.pdf
 data/documents/*.pdf
-data/profile-summary.json
-data/profile-context.json
-data/settings.json
 data/linkedin-cookies.json
 playwright/.auth/
 *.tsbuildinfo

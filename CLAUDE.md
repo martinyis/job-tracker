@@ -41,16 +41,13 @@ The app runs as **two independent processes** that communicate via the SQLite da
 
 ### Configuration System
 **Two-tier configuration**:
-- **Secrets** (API key) live in `.env` (not committed)
-- **All other settings** live in `data/settings.json` (not committed, use `data/settings.example.json` as template)
+- **Secrets** (API keys, Telegram tokens) live in `.env` (not committed)
+- **All other settings** live in the SQLite database (`AppSettings` and `UserProfile` tables)
 
 The `config.ts` module:
-- Loads settings from `data/settings.json` on startup
-- Merges them with defaults for missing fields
+- Loads settings from the database via `getOrCreateSettings()` on startup
 - Provides `reloadConfig()` to hot-reload after settings changes
 - `validateConfig()` checks for required fields (API key, keywords)
-
-**Note**: The codebase currently references `ANTHROPIC_API_KEY` and Anthropic in the README, but the actual implementation uses `NVIDIA_API_KEY` and NVIDIA's API (see `config.ts:93-97`). This is an inconsistency to be aware of.
 
 ### Scraper Pipeline (Fast & Efficient)
 The scraper (`src/scheduler.ts` + `src/scraper/linkedin-scraper.ts`) uses a **card-level** approach with no detail-page visits:
@@ -76,7 +73,7 @@ Located in `src/ai/job-matcher.ts`:
 - Prompt includes seniority targets, tech stack preferences, exclusion rules
 - Returns array of relevant `linkedinIds`
 
-**Profile summary**: `src/ai/resume-processor.ts` extracts skills/experience from uploaded resume PDF and caches it in `data/profile-summary.json`
+**Profile summary**: `src/ai/resume-processor.ts` extracts skills/experience from uploaded resume PDF and caches the result in the `UserProfile.profileSummaryCache` database field
 
 ### Database Schema
 SQLite database via Prisma (`prisma/schema.prisma`):
@@ -98,7 +95,7 @@ SQLite database via Prisma (`prisma/schema.prisma`):
 Express server (`src/ui/server.ts`) with EJS templates:
 - `/setup` route (`src/ui/setup-routes.ts`) - first-time configuration
   - Upload resume, set keywords, configure preferences
-  - Saves to `data/settings.json`
+  - Saves to database via Prisma
   - Calls `reloadConfig()` to apply changes without restart
 - Dashboard routes (`src/ui/routes.ts`) - job review, status updates, notes
 - Agent control routes — `POST /agent/start`, `POST /agent/stop`, `GET /agent/status`
@@ -117,10 +114,19 @@ Winston logger (`src/logger.ts`):
 - `logs/app.log` - combined logs
 - `logs/error.log` - errors only
 
+### Telegram Notifications
+When the enrichment agent classifies a job as "urgent" priority, it optionally sends a Telegram notification. The notification message is AI-generated via a separate API call to sound like a friend texting about the opportunity (casual, excited, with action items woven in naturally).
+
+**Configuration**: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env`. If both are set, notifications are active. If either is missing, notifications are silently skipped.
+
+**Pipeline position**: Fires after enrichment data is saved to DB and success is marked. Notification failures are logged but never block the enrichment pipeline.
+
+**Key file**: `src/notifications/telegram.ts` — contains the AI message generation, Telegram API sender, and test notification function.
+
 ## Key Implementation Details
 
 ### Configuration Hot-Reload
-When settings are saved via UI, the code calls `reloadConfig()` to update the UI process. The scraper agent (separate process) picks up config changes on its next cycle start by re-reading files from disk.
+When settings are saved via UI, the code calls `reloadConfig()` to update the UI process. The scraper agent (separate process) picks up config changes on its next cycle start by re-reading from the database.
 
 ### Stuck State Recovery
 On startup, `resetScraperStateOnStartup()` clears any stuck `isRunning=true` state and stale PIDs from previous crashes.
@@ -137,8 +143,7 @@ The scraper tolerates individual card extraction failures but marks the cycle as
 ## Common Workflows
 
 ### Adding a New Search Keyword
-1. Edit `data/settings.json` manually, OR
-2. Use the UI at `/setup` to add keywords and save
+Use the UI at `/setup` to add keywords and save.
 
 ### Changing AI Model Parameters
 Edit `config.ts:92-97` to adjust model, maxTokens, or temperature for NVIDIA API calls.
@@ -153,10 +158,9 @@ Edit `config.ts:104-114`:
 Use `npm run scrape` to run one cycle manually. Check logs for filter metrics (keyword filter → dedup → AI filter → saved).
 
 ## File Locations
-- `data/resume.pdf` - uploaded resume (not committed)
-- `data/settings.json` - user configuration (not committed)
-- `data/profile-summary.json` - cached AI resume summary (not committed)
-- `prisma/dev.db` - SQLite database (not committed)
+- `data/documents/` - uploaded resumes and documents (not committed)
+- `data/linkedin-cookies.json` - LinkedIn session cookies (not committed)
+- `prisma/dev.db` - SQLite database containing all settings, profile, and job data (not committed)
 - `logs/` - Winston log files (not committed)
 
 ## Important Notes

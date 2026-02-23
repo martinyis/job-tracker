@@ -1,688 +1,253 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LinkedIn Job Tracker</title>
-  <link rel="stylesheet" href="/static/styles.css">
+  <%- include('partials/head') %>
+  <title>Dashboard - Job Tracker</title>
 </head>
 <body>
-  <!-- Navigation -->
-  <nav class="navbar">
-    <div class="nav-inner">
-      <a href="/" class="nav-brand">Job Tracker</a>
-      <div class="nav-links">
-        <a href="/" class="nav-link active">Dashboard</a>
-        <a href="/profile" class="nav-link">Profile</a>
-        <a href="/setup" class="nav-link">Settings</a>
-      </div>
-      <div class="nav-status">
-        <% if (linkedinSessionValid) { %>
-          <span class="badge badge-connected" title="Apply links will be extracted">LinkedIn: Connected</span>
-        <% } else { %>
-          <span class="badge badge-disconnected" title="Run npm run login to enable apply link extraction">LinkedIn: Not Connected</span>
-        <% } %>
-      </div>
-    </div>
-  </nav>
+  <div class="cy-app">
+    <%- include('partials/sidebar', { activePage: 'dashboard' }) %>
 
-  <div class="container">
-    <% if (agentError) { %>
-      <div class="agent-error"><%= agentError %></div>
-    <% } %>
+    <main class="cy-main">
+      <div class="cy-page">
 
-    <header>
-      <h1>Dashboard</h1>
-    </header>
+        <!-- Page Header -->
+        <div class="cy-page-header">
+          <h1>Dashboard</h1>
+          <span class="cy-page-header-meta"><%= new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) %></span>
+        </div>
 
-    <!-- Scraper Status Panel -->
-    <div class="scraper-panel" id="scraper-panel">
-      <div class="scraper-panel-header">
-        <div class="scraper-panel-title">
-          <span class="scraper-dot <%= agentStatus.running ? 'scraper-dot-running' : '' %>" id="scraper-dot"></span>
-          <span id="scraper-status-text"><%= agentStatus.running ? 'Scraper Running' : 'Scraper Stopped' %></span>
-        </div>
-        <div class="scraper-panel-actions" id="scraper-actions">
-          <% if (agentStatus.running) { %>
-            <form method="POST" action="/agent/stop" class="inline-nav-form">
-              <button type="submit" class="btn-agent-stop">Stop Scraper</button>
-            </form>
-          <% } else { %>
-            <form method="POST" action="/agent/start" class="inline-nav-form">
-              <button type="submit" class="btn-agent-start">Start Scraper</button>
-            </form>
-          <% } %>
-        </div>
-      </div>
-      <div class="scraper-panel-details">
-        <div class="scraper-detail">
-          <span class="scraper-detail-label">Cycle</span>
-          <span class="scraper-detail-value" id="scraper-cycle">
-            <% if (!agentStatus.running) { %>
-              --
-            <% } else if (agentStatus.isRunningCycle) { %>
-              <span class="badge badge-running">Active</span>
-            <% } else { %>
-              <span class="badge badge-agent-stopped">Idle</span>
-            <% } %>
-          </span>
-        </div>
-        <div class="scraper-detail">
-          <span class="scraper-detail-label">Last Run</span>
-          <span class="scraper-detail-value" id="scraper-last-run"><%= scraperState.lastRunAt ? new Date(scraperState.lastRunAt).toLocaleString() : 'Never' %></span>
-        </div>
-        <div class="scraper-detail">
-          <span class="scraper-detail-label">Last Success</span>
-          <span class="scraper-detail-value" id="scraper-last-success"><%= scraperState.lastSuccessAt ? new Date(scraperState.lastSuccessAt).toLocaleString() : 'Never' %></span>
-        </div>
-        <div class="scraper-detail">
-          <span class="scraper-detail-label">Errors</span>
-          <span class="scraper-detail-value" id="scraper-errors">
-            <% if (agentStatus.errorCount === 0) { %>
-              0
-            <% } else if (agentStatus.errorCount >= 5) { %>
-              <span class="badge badge-error"><%= agentStatus.errorCount %> (Paused)</span>
-            <% } else { %>
-              <span class="badge badge-error"><%= agentStatus.errorCount %></span>
-            <% } %>
-          </span>
-        </div>
-        <% if (agentStatus.running && agentStatus.pid) { %>
-          <div class="scraper-detail" id="scraper-pid-detail">
-            <span class="scraper-detail-label">PID</span>
-            <span class="scraper-detail-value" id="scraper-pid"><%= agentStatus.pid %></span>
-          </div>
-        <% } %>
-      </div>
+        <!-- ============================================================
+             STAT CARDS with SVG Sparklines (CyFocus style)
+             ============================================================ -->
+        <%
+          var totalJobs = stats.totalJobs || 0;
+          var newCount = stats.statusCounts.new || 0;
+          var appliedCount = stats.statusCounts.applied || 0;
+          var reviewedCount = stats.statusCounts.reviewed || 0;
+          var urgentCount = stats.priorityCounts.urgent || 0;
+          var highCount = stats.priorityCounts.high || 0;
+          var pendingEnrich = stats.pendingEnrichment || 0;
+        %>
+        <div class="cy-stats-row">
 
-      <!-- Log Viewer -->
-      <div class="log-viewer">
-        <div class="log-viewer-header">
-          <button class="log-viewer-toggle" id="log-toggle" type="button">
-            <span class="log-toggle-arrow" id="log-arrow">&#9654;</span>
-            Agent Logs
-          </button>
-          <div class="log-viewer-controls" id="log-controls" style="display: none;">
-            <label class="checkbox-label log-autoscroll-label">
-              <input type="checkbox" id="log-autoscroll" checked> Auto-scroll
-            </label>
-            <button type="button" class="btn-log-clear" id="log-clear">Clear</button>
-          </div>
-        </div>
-        <div class="log-viewer-body" id="log-body" style="display: none;">
-          <pre class="log-content" id="log-content">Loading logs...</pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- Enricher Status Panel -->
-    <div class="scraper-panel" id="enricher-panel">
-      <div class="scraper-panel-header">
-        <div class="scraper-panel-title">
-          <span class="scraper-dot <%= enricherStatus.running ? 'scraper-dot-running' : '' %>" id="enricher-dot"></span>
-          <span id="enricher-status-text"><%= enricherStatus.running ? 'Enricher Running' : 'Enricher Stopped' %></span>
-        </div>
-        <div class="scraper-panel-actions" id="enricher-actions">
-          <% if (enricherStatus.running) { %>
-            <form method="POST" action="/enricher/stop" class="inline-nav-form">
-              <button type="submit" class="btn-agent-stop">Stop Enricher</button>
-            </form>
-          <% } else { %>
-            <form method="POST" action="/enricher/start" class="inline-nav-form">
-              <button type="submit" class="btn-agent-start">Start Enricher</button>
-            </form>
-          <% } %>
-        </div>
-      </div>
-      <div class="scraper-panel-details">
-        <div class="scraper-detail">
-          <span class="scraper-detail-label">Status</span>
-          <span class="scraper-detail-value" id="enricher-processing">
-            <% if (!enricherStatus.running) { %>
-              --
-            <% } else if (enricherStatus.isProcessing) { %>
-              <span class="badge badge-running">Processing</span>
-            <% } else { %>
-              <span class="badge badge-agent-stopped">Idle</span>
-            <% } %>
-          </span>
-        </div>
-        <div class="scraper-detail">
-          <span class="scraper-detail-label">Queue</span>
-          <span class="scraper-detail-value" id="enricher-queue"><%= enrichmentQueueSize %></span>
-        </div>
-        <div class="scraper-detail">
-          <span class="scraper-detail-label">Enriched</span>
-          <span class="scraper-detail-value" id="enricher-total"><%= enricherStatus.totalEnriched %></span>
-        </div>
-        <div class="scraper-detail">
-          <span class="scraper-detail-label">Failed</span>
-          <span class="scraper-detail-value" id="enricher-failed"><%= enricherStatus.totalFailed %></span>
-        </div>
-        <div class="scraper-detail">
-          <span class="scraper-detail-label">Errors</span>
-          <span class="scraper-detail-value" id="enricher-errors">
-            <% if (enricherStatus.errorCount === 0) { %>
-              0
-            <% } else if (enricherStatus.errorCount >= 5) { %>
-              <span class="badge badge-error"><%= enricherStatus.errorCount %> (Paused)</span>
-            <% } else { %>
-              <span class="badge badge-error"><%= enricherStatus.errorCount %></span>
-            <% } %>
-          </span>
-        </div>
-        <% if (enricherStatus.running && enricherStatus.pid) { %>
-          <div class="scraper-detail" id="enricher-pid-detail">
-            <span class="scraper-detail-label">PID</span>
-            <span class="scraper-detail-value" id="enricher-pid"><%= enricherStatus.pid %></span>
-          </div>
-        <% } %>
-      </div>
-
-      <!-- Enricher Log Viewer -->
-      <div class="log-viewer">
-        <div class="log-viewer-header">
-          <button class="log-viewer-toggle" id="enricher-log-toggle" type="button">
-            <span class="log-toggle-arrow" id="enricher-log-arrow">&#9654;</span>
-            Enricher Logs
-          </button>
-          <div class="log-viewer-controls" id="enricher-log-controls" style="display: none;">
-            <label class="checkbox-label log-autoscroll-label">
-              <input type="checkbox" id="enricher-log-autoscroll" checked> Auto-scroll
-            </label>
-            <button type="button" class="btn-log-clear" id="enricher-log-clear">Clear</button>
-          </div>
-        </div>
-        <div class="log-viewer-body" id="enricher-log-body" style="display: none;">
-          <pre class="log-content" id="enricher-log-content">Loading logs...</pre>
-        </div>
-      </div>
-    </div>
-
-    <!-- Stats -->
-    <div class="stats-bar">
-      <div class="stat">
-        <span class="stat-value"><%= stats.totalJobs %></span>
-        <span class="stat-label">Total Jobs</span>
-      </div>
-      <div class="stat stat-urgent">
-        <span class="stat-value"><%= stats.priorityCounts.urgent || 0 %></span>
-        <span class="stat-label">Urgent</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value"><%= stats.statusCounts.new || 0 %></span>
-        <span class="stat-label">New</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value"><%= stats.statusCounts.reviewed || 0 %></span>
-        <span class="stat-label">Reviewed</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value"><%= stats.statusCounts.applied || 0 %></span>
-        <span class="stat-label">Applied</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value"><%= stats.statusCounts.rejected || 0 %></span>
-        <span class="stat-label">Rejected</span>
-      </div>
-      <div class="stat">
-        <span class="stat-value"><%= stats.pendingEnrichment %></span>
-        <span class="stat-label">Queue</span>
-      </div>
-    </div>
-
-    <!-- Filters -->
-    <div class="filters">
-      <a href="/" class="filter-btn <%= currentFilter === 'all' ? 'active' : '' %>">All</a>
-      <% statuses.forEach(function(status) { %>
-        <a href="/?status=<%= status %>" class="filter-btn <%= currentFilter === status ? 'active' : '' %>">
-          <%= status.charAt(0).toUpperCase() + status.slice(1) %>
-        </a>
-      <% }); %>
-    </div>
-
-    <!-- Jobs Table -->
-    <% if (jobs.length === 0) { %>
-      <div class="empty-state">
-        <p>No jobs found. <% if (currentFilter !== 'all') { %>Try a different filter or <a href="/">view all</a>.<% } else { %>The scraper hasn't found any matching jobs yet.<% } %></p>
-      </div>
-    <% } else { %>
-      <table class="jobs-table">
-        <thead>
-          <tr>
-            <th>Score</th>
-            <th>Title</th>
-            <th>Company</th>
-            <th>Location</th>
-            <th>Date</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% jobs.forEach(function(job) { %>
-            <tr class="job-row" data-id="<%= job.id %>">
-              <td>
-                <span class="score score-<%= job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : 'decent' %>">
-                  <%= job.matchScore %>
+          <!-- Total Jobs -->
+          <div class="cy-stat-card">
+            <div class="cy-stat-info">
+              <span class="cy-stat-label">Total Jobs</span>
+              <span class="cy-stat-value accent"><%= totalJobs %></span>
+              <span class="cy-stat-compare">
+                <%= newCount %> new
+                <span class="cy-stat-badge up">
+                  <svg width="8" height="8" viewBox="0 0 8 8"><path d="M4 1L7 5H1L4 1Z" fill="currentColor"/></svg>
+                  active
                 </span>
-              </td>
-              <td class="job-title-cell">
-                <% if (job.priority === 'urgent') { %>
-                  <span class="priority-badge priority-urgent">URGENT</span>
-                <% } else if (job.priority === 'high') { %>
-                  <span class="priority-badge priority-high">HIGH</span>
-                <% } else if (job.enrichmentStatus === 'pending') { %>
-                  <span class="enrichment-pending">Analyzing...</span>
+              </span>
+            </div>
+            <div class="cy-stat-chart">
+              <!-- Bar chart sparkline -->
+              <svg width="64" height="48" viewBox="0 0 64 48">
+                <rect x="2" y="28" width="6" height="20" rx="1" fill="rgba(245,158,11,0.2)"/>
+                <rect x="11" y="18" width="6" height="30" rx="1" fill="rgba(245,158,11,0.3)"/>
+                <rect x="20" y="24" width="6" height="24" rx="1" fill="rgba(245,158,11,0.25)"/>
+                <rect x="29" y="12" width="6" height="36" rx="1" fill="rgba(245,158,11,0.35)"/>
+                <rect x="38" y="20" width="6" height="28" rx="1" fill="rgba(245,158,11,0.3)"/>
+                <rect x="47" y="8" width="6" height="40" rx="1" fill="rgba(245,158,11,0.4)"/>
+                <rect x="56" y="4" width="6" height="44" rx="1" fill="var(--accent)"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- New Today -->
+          <div class="cy-stat-card">
+            <div class="cy-stat-info">
+              <span class="cy-stat-label">New</span>
+              <span class="cy-stat-value"><%= newCount %></span>
+              <span class="cy-stat-compare">
+                <%= urgentCount %> urgent
+                <% if (urgentCount > 0) { %>
+                  <span class="cy-stat-badge up">
+                    <svg width="8" height="8" viewBox="0 0 8 8"><path d="M4 1L7 5H1L4 1Z" fill="currentColor"/></svg>
+                    hot
+                  </span>
+                <% } else { %>
+                  <span class="cy-stat-badge neutral">--</span>
                 <% } %>
-                <a href="<%= job.link %>" target="_blank" rel="noopener noreferrer"><%= job.title %></a>
-              </td>
-              <td><%= job.company %></td>
-              <td><%= job.location %></td>
-              <td class="nowrap"><%= job.postedDate %></td>
-              <td>
-                <span class="status status-<%= job.status %>"><%= job.status %></span>
-              </td>
-              <td class="actions">
-                <button class="btn-toggle" onclick="toggleDetail('<%= job.id %>')">Details</button>
-                <a href="<%= job.applyLink %>" target="_blank" rel="noopener noreferrer" class="btn-apply">Apply</a>
-              </td>
-            </tr>
-            <tr class="job-detail" id="detail-<%= job.id %>" style="display: none;">
-              <td colspan="7">
-                <div class="detail-content">
+              </span>
+            </div>
+            <div class="cy-stat-chart">
+              <!-- Trend line sparkline -->
+              <svg width="64" height="48" viewBox="0 0 64 48">
+                <polyline points="4,38 14,30 24,34 34,22 44,26 54,14 62,8" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="4,38 14,30 24,34 34,22 44,26 54,14 62,8" fill="none" stroke="var(--accent)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.08"/>
+              </svg>
+            </div>
+          </div>
 
-                  <% if (job.enrichmentStatus === 'enriched') { %>
-                    <!-- Priority & Action Items -->
-                    <% if (job.priorityReason) { %>
-                      <div class="detail-section">
-                        <h3>Priority: <%= job.priority.toUpperCase() %></h3>
-                        <p><%= job.priorityReason %></p>
-                      </div>
-                    <% } %>
+          <!-- Applied -->
+          <div class="cy-stat-card">
+            <div class="cy-stat-info">
+              <span class="cy-stat-label">Applied</span>
+              <span class="cy-stat-value green"><%= appliedCount %></span>
+              <span class="cy-stat-compare">
+                <%= reviewedCount %> reviewed
+                <span class="cy-stat-badge neutral">
+                  <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="2" fill="currentColor"/></svg>
+                  total
+                </span>
+              </span>
+            </div>
+            <div class="cy-stat-chart">
+              <!-- Progress arc sparkline -->
+              <svg width="48" height="48" viewBox="0 0 48 48">
+                <circle cx="24" cy="24" r="18" fill="none" stroke="rgba(34,197,94,0.12)" stroke-width="4"/>
+                <circle cx="24" cy="24" r="18" fill="none" stroke="var(--green)" stroke-width="4" stroke-linecap="round"
+                  stroke-dasharray="<%= totalJobs > 0 ? Math.round((appliedCount / totalJobs) * 113) : 0 %> 113"
+                  transform="rotate(-90 24 24)"/>
+                <text x="24" y="27" text-anchor="middle" fill="var(--green-text)" font-size="11" font-weight="700"><%= totalJobs > 0 ? Math.round((appliedCount / totalJobs) * 100) : 0 %>%</text>
+              </svg>
+            </div>
+          </div>
 
-                    <% if (job.actionItemsParsed.length > 0) { %>
-                      <div class="detail-section">
-                        <h3>Action Items</h3>
-                        <ul class="action-items-list">
-                          <% job.actionItemsParsed.forEach(function(item) { %>
-                            <li><%= item %></li>
-                          <% }); %>
-                        </ul>
-                      </div>
-                    <% } %>
+          <!-- Scraper Status -->
+          <div class="cy-stat-card">
+            <div class="cy-stat-info">
+              <span class="cy-stat-label">Scraper</span>
+              <span class="cy-stat-value blue" id="dash-scraper-status"><%= agentStatus.running ? 'ON' : 'OFF' %></span>
+              <span class="cy-stat-compare">
+                Queue: <%= pendingEnrich %>
+                <span class="cy-stat-badge neutral">enrichment</span>
+              </span>
+            </div>
+            <div class="cy-stat-chart">
+              <!-- Activity bars sparkline -->
+              <svg width="64" height="48" viewBox="0 0 64 48">
+                <rect x="4" y="16" width="4" height="16" rx="1" fill="<%= agentStatus.running ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.06)' %>"/>
+                <rect x="12" y="10" width="4" height="28" rx="1" fill="<%= agentStatus.running ? 'rgba(59,130,246,0.5)' : 'rgba(255,255,255,0.06)' %>"/>
+                <rect x="20" y="18" width="4" height="12" rx="1" fill="<%= agentStatus.running ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.06)' %>"/>
+                <rect x="28" y="6" width="4" height="36" rx="1" fill="<%= agentStatus.running ? 'rgba(59,130,246,0.6)' : 'rgba(255,255,255,0.06)' %>"/>
+                <rect x="36" y="14" width="4" height="20" rx="1" fill="<%= agentStatus.running ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.06)' %>"/>
+                <rect x="44" y="8" width="4" height="32" rx="1" fill="<%= agentStatus.running ? 'rgba(59,130,246,0.55)' : 'rgba(255,255,255,0.06)' %>"/>
+                <rect x="52" y="4" width="4" height="40" rx="1" fill="<%= agentStatus.running ? 'var(--blue)' : 'rgba(255,255,255,0.08)' %>"/>
+              </svg>
+            </div>
+          </div>
 
-                    <% if (job.redFlagsParsed.length > 0) { %>
-                      <div class="detail-section">
-                        <h3>Red Flags</h3>
-                        <ul class="red-flags-list">
-                          <% job.redFlagsParsed.forEach(function(flag) { %>
-                            <li><%= flag %></li>
-                          <% }); %>
-                        </ul>
-                      </div>
-                    <% } %>
+        </div>
 
-                    <!-- People to Reach Out To -->
-                    <% if (job.contactPeopleParsed.length > 0 || job.postedBy) { %>
-                      <div class="detail-section">
-                        <h3>People to Reach Out To</h3>
-                        <% if (job.postedBy) { %>
-                          <div class="contact-person">
-                            <strong>Posted by:</strong>
-                            <% if (job.postedByProfile) { %>
-                              <a href="<%= job.postedByProfile %>" target="_blank" rel="noopener noreferrer"><%= job.postedBy %></a>
-                            <% } else { %>
-                              <%= job.postedBy %>
-                            <% } %>
-                            <% if (job.postedByTitle) { %><span class="hint">&mdash; <%= job.postedByTitle %></span><% } %>
-                          </div>
-                        <% } %>
-                        <% job.contactPeopleParsed.forEach(function(person) { %>
-                          <div class="contact-person">
-                            <% if (person.profileUrl) { %>
-                              <a href="<%= person.profileUrl %>" target="_blank" rel="noopener noreferrer"><%= person.name %></a>
-                            <% } else { %>
-                              <%= person.name %>
-                            <% } %>
-                            <% if (person.title) { %><span class="hint">&mdash; <%= person.title %></span><% } %>
-                          </div>
-                        <% }); %>
-                      </div>
-                    <% } %>
-                  <% } %>
+        <!-- ============================================================
+             TWO COLUMN DASHBOARD GRID
+             ============================================================ -->
+        <div class="cy-dash-grid">
 
-                  <!-- AI Match Analysis -->
-                  <% if (job.matchReason) { %>
-                    <div class="detail-section">
-                      <h3>AI Match Reason</h3>
-                      <p><%= job.matchReason %></p>
-                    </div>
-                  <% } %>
-
-                  <% if (job.keyMatchesParsed.length > 0) { %>
-                    <div class="detail-section">
-                      <h3>Key Matches</h3>
-                      <div class="tags">
-                        <% job.keyMatchesParsed.forEach(function(match) { %>
-                          <span class="tag"><%= match %></span>
-                        <% }); %>
-                      </div>
-                    </div>
-                  <% } %>
-
-                  <% if (job.enrichmentStatus === 'enriched') { %>
-                    <!-- Company Info -->
-                    <% if (job.companyInfo) { %>
-                      <div class="detail-section">
-                        <h3>About the Company</h3>
-                        <p><%= job.companyInfo %></p>
-                      </div>
-                    <% } %>
-
-                    <!-- Job Details Chips -->
-                    <% if (job.seniorityLevel || job.employmentType || job.jobFunction || job.applicantCount) { %>
-                      <div class="detail-section">
-                        <h3>Job Details</h3>
-                        <div class="detail-metadata">
-                          <% if (job.seniorityLevel) { %><span class="detail-chip"><%= job.seniorityLevel %></span><% } %>
-                          <% if (job.employmentType) { %><span class="detail-chip"><%= job.employmentType %></span><% } %>
-                          <% if (job.jobFunction) { %><span class="detail-chip"><%= job.jobFunction %></span><% } %>
-                          <% if (job.applicantCount) { %><span class="detail-chip"><%= job.applicantCount %></span><% } %>
-                        </div>
-                      </div>
-                    <% } %>
-
-                    <!-- Full Description -->
-                    <% if (job.description) { %>
-                      <div class="detail-section">
-                        <h3>Full Description</h3>
-                        <div class="description-full"><%= job.description %></div>
-                      </div>
-                    <% } %>
-                  <% } else { %>
-                    <!-- Pre-enrichment: show truncated description if any -->
-                    <% if (job.description) { %>
-                      <div class="detail-section">
-                        <h3>Job Description</h3>
-                        <div class="description-text"><%= job.description.substring(0, 500) %><% if (job.description.length > 500) { %>...<% } %></div>
-                      </div>
-                    <% } %>
-                  <% } %>
-
-                  <!-- Status actions and notes -->
-                  <div class="detail-actions">
-                    <form method="POST" action="/update-status" class="inline-form">
-                      <input type="hidden" name="id" value="<%= job.id %>">
-                      <% if (job.status !== 'reviewed') { %>
-                        <button type="submit" name="status" value="reviewed" class="btn btn-review">Mark Reviewed</button>
-                      <% } %>
-                      <% if (job.status !== 'applied') { %>
-                        <button type="submit" name="status" value="applied" class="btn btn-applied">Mark Applied</button>
-                      <% } %>
-                      <% if (job.status !== 'rejected') { %>
-                        <button type="submit" name="status" value="rejected" class="btn btn-reject">Reject</button>
-                      <% } %>
-                    </form>
-                    <form method="POST" action="/add-note" class="note-form">
-                      <input type="hidden" name="id" value="<%= job.id %>">
-                      <textarea name="notes" placeholder="Add notes..." rows="2"><%= job.notes || '' %></textarea>
-                      <button type="submit" class="btn btn-note">Save Note</button>
-                    </form>
-                  </div>
+          <!-- LEFT: Recent Jobs Table -->
+          <div class="cy-panel">
+            <div class="cy-panel-header">
+              <span class="cy-panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>
+                Recent Jobs
+              </span>
+              <a href="/jobs" class="cy-btn cy-btn-sm cy-btn-accent">View All</a>
+            </div>
+            <div class="cy-panel-flush">
+              <% if (jobs.length === 0) { %>
+                <div class="cy-empty" style="padding: 40px 20px;">
+                  <p>No jobs found yet. Start the scraper agent to begin tracking.</p>
                 </div>
-              </td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    <% } %>
+              <% } else { %>
+                <table class="cy-quick-table">
+                  <% jobs.slice(0, 12).forEach(function(job) { %>
+                    <tr>
+                      <td style="width: 40px;">
+                        <span class="cy-score <%= job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : job.matchScore >= 50 ? 'decent' : job.matchScore > 0 ? 'low' : 'none' %>">
+                          <%= job.matchScore %>
+                        </span>
+                      </td>
+                      <td>
+                        <% if (job.priority) { %>
+                          <span class="cy-priority <%= job.priority %>"><%= job.priority.toUpperCase() %></span>
+                        <% } %>
+                        <a href="<%= job.link %>" target="_blank" rel="noopener noreferrer" class="job-link"><%= job.title %></a>
+                        <div class="job-company"><%= job.company %><% if (job.location) { %> &middot; <%= job.location %><% } %></div>
+                      </td>
+                      <td style="width: 80px; text-align: right;">
+                        <span class="cy-status <%= job.status %>"><%= job.status %></span>
+                      </td>
+                    </tr>
+                  <% }); %>
+                </table>
+              <% } %>
+            </div>
+          </div>
+
+          <!-- RIGHT: Activity Feed (CyFocus "Recent activity" style) -->
+          <div class="cy-panel">
+            <div class="cy-panel-header">
+              <span class="cy-panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                Recent Activity
+              </span>
+            </div>
+            <div class="cy-panel-flush">
+              <div class="cy-activity-feed">
+                <% if (jobs.length === 0) { %>
+                  <div class="cy-empty" style="padding: 40px 20px;">
+                    <p>No activity yet.</p>
+                  </div>
+                <% } else { %>
+                  <% jobs.slice(0, 25).forEach(function(job) { %>
+                    <div class="cy-activity-item">
+                      <!-- Round status icon -->
+                      <div class="cy-activity-icon <%= job.status %>">
+                        <% if (job.status === 'new') { %>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        <% } else if (job.status === 'applied') { %>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        <% } else if (job.status === 'reviewed') { %>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="1"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
+                        <% } else { %>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        <% } %>
+                      </div>
+                      <!-- Body -->
+                      <div class="cy-activity-body">
+                        <div class="cy-activity-title">
+                          <a href="<%= job.link %>" target="_blank" rel="noopener noreferrer"><%= job.title %></a>
+                        </div>
+                        <div class="cy-activity-sub"><%= job.company %><% if (job.location) { %> &middot; <%= job.location %><% } %></div>
+                      </div>
+                      <!-- Timestamp -->
+                      <span class="cy-activity-time"><%= job.postedDate %></span>
+                      <!-- Arrow -->
+                      <span class="cy-activity-arrow">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                      </span>
+                    </div>
+                  <% }); %>
+                <% } %>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </main>
   </div>
 
   <script>
-    function toggleDetail(id) {
-      const row = document.getElementById('detail-' + id);
-      if (row) {
-        row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
-      }
-    }
-
-    // Auto-refresh scraper status every 5 seconds
+    // Auto-refresh scraper status indicator on dashboard
     (function() {
-      async function refreshScraperStatus() {
+      async function refresh() {
         try {
-          const res = await fetch('/agent/status');
+          var res = await fetch('/agent/status');
           if (!res.ok) return;
-          const s = await res.json();
-
-          const dot = document.getElementById('scraper-dot');
-          const text = document.getElementById('scraper-status-text');
-          if (s.running) {
-            dot.classList.add('scraper-dot-running');
-            text.textContent = 'Scraper Running';
-          } else {
-            dot.classList.remove('scraper-dot-running');
-            text.textContent = 'Scraper Stopped';
-          }
-
-          const actions = document.getElementById('scraper-actions');
-          if (s.running) {
-            actions.innerHTML = '<form method="POST" action="/agent/stop" class="inline-nav-form"><button type="submit" class="btn-agent-stop">Stop Scraper</button></form>';
-          } else {
-            actions.innerHTML = '<form method="POST" action="/agent/start" class="inline-nav-form"><button type="submit" class="btn-agent-start">Start Scraper</button></form>';
-          }
-
-          const cycle = document.getElementById('scraper-cycle');
-          if (!s.running) {
-            cycle.innerHTML = '--';
-          } else if (s.isRunningCycle) {
-            cycle.innerHTML = '<span class="badge badge-running">Active</span>';
-          } else {
-            cycle.innerHTML = '<span class="badge badge-agent-stopped">Idle</span>';
-          }
-
-          document.getElementById('scraper-last-run').textContent =
-            s.lastRunAt ? new Date(s.lastRunAt).toLocaleString() : 'Never';
-          document.getElementById('scraper-last-success').textContent =
-            s.lastSuccessAt ? new Date(s.lastSuccessAt).toLocaleString() : 'Never';
-
-          const errEl = document.getElementById('scraper-errors');
-          if (s.errorCount === 0) {
-            errEl.innerHTML = '0';
-          } else if (s.errorCount >= 5) {
-            errEl.innerHTML = '<span class="badge badge-error">' + s.errorCount + ' (Paused)</span>';
-          } else {
-            errEl.innerHTML = '<span class="badge badge-error">' + s.errorCount + '</span>';
-          }
-
-          let pidDetail = document.getElementById('scraper-pid-detail');
-          if (s.running && s.pid) {
-            if (!pidDetail) {
-              const details = document.querySelector('#scraper-panel .scraper-panel-details');
-              pidDetail = document.createElement('div');
-              pidDetail.className = 'scraper-detail';
-              pidDetail.id = 'scraper-pid-detail';
-              pidDetail.innerHTML = '<span class="scraper-detail-label">PID</span><span class="scraper-detail-value" id="scraper-pid">' + s.pid + '</span>';
-              details.appendChild(pidDetail);
-            } else {
-              document.getElementById('scraper-pid').textContent = s.pid;
-            }
-          } else if (pidDetail) {
-            pidDetail.remove();
-          }
-        } catch (e) {
-          // Silently ignore
-        }
+          var s = await res.json();
+          var el = document.getElementById('dash-scraper-status');
+          if (el) el.textContent = s.running ? 'ON' : 'OFF';
+        } catch (e) {}
       }
-
-      async function refreshEnricherStatus() {
-        try {
-          const res = await fetch('/enricher/status');
-          if (!res.ok) return;
-          const s = await res.json();
-
-          const dot = document.getElementById('enricher-dot');
-          const text = document.getElementById('enricher-status-text');
-          if (s.running) {
-            dot.classList.add('scraper-dot-running');
-            text.textContent = 'Enricher Running';
-          } else {
-            dot.classList.remove('scraper-dot-running');
-            text.textContent = 'Enricher Stopped';
-          }
-
-          const actions = document.getElementById('enricher-actions');
-          if (s.running) {
-            actions.innerHTML = '<form method="POST" action="/enricher/stop" class="inline-nav-form"><button type="submit" class="btn-agent-stop">Stop Enricher</button></form>';
-          } else {
-            actions.innerHTML = '<form method="POST" action="/enricher/start" class="inline-nav-form"><button type="submit" class="btn-agent-start">Start Enricher</button></form>';
-          }
-
-          const processing = document.getElementById('enricher-processing');
-          if (!s.running) {
-            processing.innerHTML = '--';
-          } else if (s.isProcessing) {
-            processing.innerHTML = '<span class="badge badge-running">Processing</span>';
-          } else {
-            processing.innerHTML = '<span class="badge badge-agent-stopped">Idle</span>';
-          }
-
-          document.getElementById('enricher-total').textContent = s.totalEnriched;
-          document.getElementById('enricher-failed').textContent = s.totalFailed;
-
-          const errEl = document.getElementById('enricher-errors');
-          if (s.errorCount === 0) {
-            errEl.innerHTML = '0';
-          } else if (s.errorCount >= 5) {
-            errEl.innerHTML = '<span class="badge badge-error">' + s.errorCount + ' (Paused)</span>';
-          } else {
-            errEl.innerHTML = '<span class="badge badge-error">' + s.errorCount + '</span>';
-          }
-
-          let pidDetail = document.getElementById('enricher-pid-detail');
-          if (s.running && s.pid) {
-            if (!pidDetail) {
-              const details = document.querySelector('#enricher-panel .scraper-panel-details');
-              pidDetail = document.createElement('div');
-              pidDetail.className = 'scraper-detail';
-              pidDetail.id = 'enricher-pid-detail';
-              pidDetail.innerHTML = '<span class="scraper-detail-label">PID</span><span class="scraper-detail-value" id="enricher-pid">' + s.pid + '</span>';
-              details.appendChild(pidDetail);
-            } else {
-              document.getElementById('enricher-pid').textContent = s.pid;
-            }
-          } else if (pidDetail) {
-            pidDetail.remove();
-          }
-        } catch (e) {
-          // Silently ignore
-        }
-      }
-
-      setInterval(function() {
-        refreshScraperStatus();
-        refreshEnricherStatus();
-      }, 5000);
-    })();
-
-    // Scraper log viewer
-    (function() {
-      const toggle = document.getElementById('log-toggle');
-      const arrow = document.getElementById('log-arrow');
-      const body = document.getElementById('log-body');
-      const controls = document.getElementById('log-controls');
-      const content = document.getElementById('log-content');
-      const autoScroll = document.getElementById('log-autoscroll');
-      const clearBtn = document.getElementById('log-clear');
-      let open = false;
-      let pollId = null;
-
-      toggle.addEventListener('click', function() {
-        open = !open;
-        body.style.display = open ? 'block' : 'none';
-        controls.style.display = open ? 'flex' : 'none';
-        arrow.innerHTML = open ? '&#9660;' : '&#9654;';
-        if (open) {
-          fetchLogs();
-          pollId = setInterval(fetchLogs, 3000);
-        } else if (pollId) {
-          clearInterval(pollId);
-          pollId = null;
-        }
-      });
-
-      clearBtn.addEventListener('click', function() {
-        content.textContent = '';
-      });
-
-      async function fetchLogs() {
-        try {
-          const res = await fetch('/agent/logs?lines=150');
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data.lines.length === 0) {
-            content.textContent = 'No logs yet.';
-            return;
-          }
-          const text = (data.truncated ? '--- older logs truncated ---\n' : '') + data.lines.join('\n');
-          content.textContent = text;
-          if (autoScroll.checked) {
-            body.scrollTop = body.scrollHeight;
-          }
-        } catch (e) {
-          // Silently ignore
-        }
-      }
-    })();
-
-    // Enricher log viewer
-    (function() {
-      const toggle = document.getElementById('enricher-log-toggle');
-      const arrow = document.getElementById('enricher-log-arrow');
-      const body = document.getElementById('enricher-log-body');
-      const controls = document.getElementById('enricher-log-controls');
-      const content = document.getElementById('enricher-log-content');
-      const autoScroll = document.getElementById('enricher-log-autoscroll');
-      const clearBtn = document.getElementById('enricher-log-clear');
-      let open = false;
-      let pollId = null;
-
-      toggle.addEventListener('click', function() {
-        open = !open;
-        body.style.display = open ? 'block' : 'none';
-        controls.style.display = open ? 'flex' : 'none';
-        arrow.innerHTML = open ? '&#9660;' : '&#9654;';
-        if (open) {
-          fetchLogs();
-          pollId = setInterval(fetchLogs, 3000);
-        } else if (pollId) {
-          clearInterval(pollId);
-          pollId = null;
-        }
-      });
-
-      clearBtn.addEventListener('click', function() {
-        content.textContent = '';
-      });
-
-      async function fetchLogs() {
-        try {
-          const res = await fetch('/enricher/logs?lines=150');
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data.lines.length === 0) {
-            content.textContent = 'No logs yet.';
-            return;
-          }
-          const text = (data.truncated ? '--- older logs truncated ---\n' : '') + data.lines.join('\n');
-          content.textContent = text;
-          if (autoScroll.checked) {
-            body.scrollTop = body.scrollHeight;
-          }
-        } catch (e) {
-          // Silently ignore
-        }
-      }
+      setInterval(refresh, 5000);
     })();
   </script>
 </body>

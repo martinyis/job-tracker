@@ -1,5 +1,5 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './client';
-import { logger } from '../logger';
 
 // ─── JSON Helpers ────────────────────────────────────────
 
@@ -16,16 +16,75 @@ export function toJsonArray(arr: string[]): string {
   return JSON.stringify(arr);
 }
 
+// ─── Types ───────────────────────────────────────────────
+
+export interface ProfileUpdate {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  linkedinUrl?: string;
+  website?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  zipCode?: string;
+  missionStatement?: string;
+  urgencySignals?: string;
+  summary?: string;
+  remoteOnly?: boolean;
+  willingToRelocate?: boolean;
+  openToContract?: boolean;
+  visaSponsorshipNeeded?: boolean;
+  minSalary?: number;
+  preferredCompanySize?: string;
+  avoidIndustries?: string;
+  preferredTechStack?: string;
+  targetSeniority?: string;
+  excludeTitleKeywords?: string;
+  includeTitlePatterns?: string;
+  jobSearchDescription?: string;
+  keyInterests?: string;
+  dealbreakers?: string;
+}
+
+export interface WorkExperienceUpdate {
+  employer?: string;
+  title?: string;
+  location?: string;
+  startDate?: string;
+  endDate?: string | null;
+  isCurrent?: boolean;
+  description?: string;
+  sortOrder?: number;
+}
+
+export interface EducationUpdate {
+  institution?: string;
+  degree?: string;
+  fieldOfStudy?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  gpa?: string | null;
+  sortOrder?: number;
+}
+
 // ─── UserProfile ─────────────────────────────────────────
 
 const PROFILE_INCLUDE = {
-  workExperience: { orderBy: { sortOrder: 'asc' as const } },
-  education: { orderBy: { sortOrder: 'asc' as const } },
+  workExperience: { orderBy: { sortOrder: 'asc' } },
+  education: { orderBy: { sortOrder: 'asc' } },
   skills: true,
-  references: true,
   documents: true,
-  demographicAnswers: { orderBy: { category: 'asc' as const } },
-};
+} satisfies Prisma.UserProfileInclude;
+
+const CACHE_INVALIDATING_FIELDS: (keyof ProfileUpdate)[] = [
+  'firstName', 'lastName', 'summary',
+  'preferredTechStack', 'targetSeniority', 'excludeTitleKeywords',
+  'includeTitlePatterns', 'jobSearchDescription',
+  'keyInterests', 'dealbreakers', 'remoteOnly', 'minSalary',
+  'missionStatement', 'urgencySignals',
+];
 
 /**
  * Returns the singleton profile with all relations, creating with defaults if missing.
@@ -50,36 +109,28 @@ export async function getOrCreateProfile() {
  * Partial update of profile fields. Invalidates profileSummaryCache when
  * profile or preference data changes.
  */
-export async function updateProfile(data: Record<string, unknown>) {
-  // Fields that should invalidate the AI summary cache when changed
-  const cacheInvalidatingFields = [
-    'firstName', 'lastName', 'summary',
-    'preferredTechStack', 'targetSeniority', 'excludeTitleKeywords',
-    'includeTitlePatterns', 'jobSearchDescription',
-    'keyInterests', 'dealbreakers', 'remoteOnly', 'minSalary',
-    'missionStatement', 'urgencySignals',
-  ];
-
+export async function updateProfile(data: ProfileUpdate) {
   const shouldInvalidateCache = Object.keys(data).some((key) =>
-    cacheInvalidatingFields.includes(key),
+    CACHE_INVALIDATING_FIELDS.includes(key as keyof ProfileUpdate),
   );
 
+  const updateData: Prisma.UserProfileUncheckedUpdateInput = { ...data };
+
   if (shouldInvalidateCache) {
-    data.profileSummaryCache = null;
-    data.profileSummaryCachedAt = null;
+    updateData.profileSummaryCache = null;
+    updateData.profileSummaryCachedAt = null;
   }
 
   return prisma.userProfile.upsert({
     where: { id: 'singleton' },
-    update: data,
+    update: updateData,
     create: { id: 'singleton', ...data },
     include: PROFILE_INCLUDE,
   });
 }
 
 /**
- * Returns profile + preferences + work experience + education + skills
- * for AI consumption (no references/documents).
+ * Returns profile + preferences for AI consumption.
  */
 export async function getProfileForAI() {
   const profile = await getOrCreateProfile();
@@ -109,7 +160,6 @@ export async function getProfileForAI() {
 
 /**
  * Returns profile data specifically for the enrichment AI prompt.
- * Includes mission/urgency fields and condensed work experience.
  */
 export async function getProfileForEnrichmentAI() {
   const profile = await getOrCreateProfile();
@@ -161,13 +211,6 @@ export async function getProfileSummaryCache() {
 
 // ─── WorkExperience CRUD ─────────────────────────────────
 
-export async function getWorkExperience() {
-  return prisma.workExperience.findMany({
-    where: { profileId: 'singleton' },
-    orderBy: { sortOrder: 'asc' },
-  });
-}
-
 export async function addWorkExperience(data: {
   employer: string;
   title: string;
@@ -188,7 +231,7 @@ export async function addWorkExperience(data: {
   return entry;
 }
 
-export async function updateWorkExperience(id: string, data: Record<string, unknown>) {
+export async function updateWorkExperience(id: string, data: WorkExperienceUpdate) {
   const entry = await prisma.workExperience.update({
     where: { id },
     data,
@@ -203,13 +246,6 @@ export async function deleteWorkExperience(id: string) {
 }
 
 // ─── Education CRUD ──────────────────────────────────────
-
-export async function getEducation() {
-  return prisma.education.findMany({
-    where: { profileId: 'singleton' },
-    orderBy: { sortOrder: 'asc' },
-  });
-}
 
 export async function addEducation(data: {
   institution: string;
@@ -230,7 +266,7 @@ export async function addEducation(data: {
   return entry;
 }
 
-export async function updateEducation(id: string, data: Record<string, unknown>) {
+export async function updateEducation(id: string, data: EducationUpdate) {
   const entry = await prisma.education.update({
     where: { id },
     data,
@@ -245,13 +281,6 @@ export async function deleteEducation(id: string) {
 }
 
 // ─── Skill CRUD ──────────────────────────────────────────
-
-export async function getSkills() {
-  return prisma.skill.findMany({
-    where: { profileId: 'singleton' },
-    orderBy: { name: 'asc' },
-  });
-}
 
 export async function addSkill(data: {
   name: string;
@@ -269,54 +298,9 @@ export async function addSkill(data: {
   return entry;
 }
 
-export async function updateSkill(id: string, data: Record<string, unknown>) {
-  const entry = await prisma.skill.update({
-    where: { id },
-    data,
-  });
-  await invalidateProfileSummaryCache();
-  return entry;
-}
-
 export async function deleteSkill(id: string) {
   await prisma.skill.delete({ where: { id } });
   await invalidateProfileSummaryCache();
-}
-
-// ─── Reference CRUD ──────────────────────────────────────
-
-export async function getReferences() {
-  return prisma.reference.findMany({
-    where: { profileId: 'singleton' },
-    orderBy: { name: 'asc' },
-  });
-}
-
-export async function addReference(data: {
-  name: string;
-  relationship?: string;
-  company?: string;
-  email?: string;
-  phone?: string;
-  notes?: string;
-}) {
-  return prisma.reference.create({
-    data: {
-      profileId: 'singleton',
-      ...data,
-    },
-  });
-}
-
-export async function updateReference(id: string, data: Record<string, unknown>) {
-  return prisma.reference.update({
-    where: { id },
-    data,
-  });
-}
-
-export async function deleteReference(id: string) {
-  await prisma.reference.delete({ where: { id } });
 }
 
 // ─── Document Tracking ───────────────────────────────────
@@ -336,7 +320,6 @@ export async function addDocument(data: {
   sizeBytes?: number;
   isPrimary?: boolean;
 }) {
-  // If marking as primary, clear other primaries of same type first
   if (data.isPrimary) {
     await prisma.document.updateMany({
       where: { profileId: 'singleton', type: data.type, isPrimary: true },
@@ -361,47 +344,3 @@ export async function getPrimaryResume() {
     where: { profileId: 'singleton', type: 'resume', isPrimary: true },
   });
 }
-
-// ─── DemographicAnswer CRUD ─────────────────────────────
-
-export async function getDemographicAnswers() {
-  return prisma.demographicAnswer.findMany({
-    where: { profileId: 'singleton' },
-    orderBy: { category: 'asc' },
-  });
-}
-
-export async function getDemographicAnswerByCategory(category: string) {
-  return prisma.demographicAnswer.findUnique({
-    where: { profileId_category: { profileId: 'singleton', category } },
-  });
-}
-
-export async function upsertDemographicAnswer(category: string, answer: string, notes?: string) {
-  return prisma.demographicAnswer.upsert({
-    where: { profileId_category: { profileId: 'singleton', category } },
-    update: { answer, notes: notes ?? '' },
-    create: { profileId: 'singleton', category, answer, notes: notes ?? '' },
-  });
-}
-
-export async function upsertDemographicAnswersBatch(
-  answers: Array<{ category: string; answer: string; notes?: string }>
-) {
-  return prisma.$transaction(
-    answers.map((a) =>
-      prisma.demographicAnswer.upsert({
-        where: { profileId_category: { profileId: 'singleton', category: a.category } },
-        update: { answer: a.answer, notes: a.notes ?? '' },
-        create: { profileId: 'singleton', category: a.category, answer: a.answer, notes: a.notes ?? '' },
-      })
-    )
-  );
-}
-
-export async function deleteDemographicAnswer(category: string) {
-  return prisma.demographicAnswer.deleteMany({
-    where: { profileId: 'singleton', category },
-  });
-}
-

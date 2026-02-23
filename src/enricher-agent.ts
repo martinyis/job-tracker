@@ -17,6 +17,7 @@ import { getProfileForEnrichmentAI } from './database/profile-queries';
 import { DetailScraper, SessionExpiredError } from './scraper/detail-scraper';
 import { analyzeEnrichedJob } from './ai/job-enricher';
 import { randomDelay } from './scraper/anti-detection';
+import { isTelegramConfigured, sendUrgentJobNotification } from './notifications/telegram';
 
 let shutdownRequested = false;
 let detailScraper: DetailScraper | null = null;
@@ -206,6 +207,22 @@ async function enrichmentLoop(): Promise<void> {
       });
 
       await markEnricherSuccess();
+
+      // Send Telegram notification for urgent jobs
+      if (analysis.priority === 'urgent' && !analysis.aiFailed && isTelegramConfigured()) {
+        await sendUrgentJobNotification(
+          {
+            title: job.title,
+            company: job.company,
+            link: job.link,
+            applyLink: job.applyLink,
+            postedBy: jobDetail.postedBy,
+            postedByTitle: jobDetail.postedByTitle,
+          },
+          analysis,
+        );
+      }
+
       jobsProcessedSinceBrowserStart++;
 
       logger.info('Job enriched successfully', {
@@ -215,6 +232,7 @@ async function enrichmentLoop(): Promise<void> {
         priority: analysis.priority,
         matchScore: analysis.matchScore,
         aiFailed: analysis.aiFailed ?? false,
+        notified: analysis.priority === 'urgent' && !analysis.aiFailed && isTelegramConfigured(),
       });
 
       // Anti-detection delay between jobs

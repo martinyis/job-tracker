@@ -51,7 +51,6 @@ model Job {
   updatedAt   DateTime @updatedAt
 
   @@index([status])
-  @@index([matchScore])
   @@index([createdAt])
   @@index([enrichmentStatus])
   @@index([priority])
@@ -94,15 +93,6 @@ model UserProfile {
   country     String @default("")
   zipCode     String @default("")
 
-  // Additional Application Fields
-  preferredName      String @default("")
-  pronouns           String @default("")
-  dateOfBirth        String @default("")
-  yearsOfExperience  Int    @default(0)
-  desiredSalary      String @default("")
-  availableStartDate String @default("")
-  coverLetterNotes   String @default("")
-
   // Enrichment AI Context
   missionStatement  String @default("")  // Why you're looking, what excites you, ideal scenario
   urgencySignals    String @default("")  // What should trigger "urgent" priority
@@ -134,9 +124,7 @@ model UserProfile {
   workExperience     WorkExperience[]
   education          Education[]
   skills             Skill[]
-  references         Reference[]
   documents          Document[]
-  demographicAnswers DemographicAnswer[]
 
   updatedAt DateTime @updatedAt
 }
@@ -195,23 +183,6 @@ model Skill {
   @@index([profileId])
 }
 
-model Reference {
-  id        String      @id @default(uuid())
-  profileId String      @default("singleton")
-  profile   UserProfile @relation(fields: [profileId], references: [id])
-
-  name         String
-  relationship String @default("")
-  company      String @default("")
-  email        String @default("")
-  phone        String @default("")
-  notes        String @default("")
-
-  createdAt DateTime @default(now())
-
-  @@index([profileId])
-}
-
 model Document {
   id        String      @id @default(uuid())
   profileId String      @default("singleton")
@@ -229,21 +200,6 @@ model Document {
   @@index([profileId])
 }
 
-model DemographicAnswer {
-  id        String      @id @default(uuid())
-  profileId String      @default("singleton")
-  profile   UserProfile @relation(fields: [profileId], references: [id])
-
-  category  String
-  answer    String  @default("")
-  notes     String  @default("")
-
-  updatedAt DateTime @updatedAt
-
-  @@unique([profileId, category])
-  @@index([profileId])
-}
-
 model AppSettings {
   id String @id @default("singleton")
 
@@ -255,7 +211,6 @@ model AppSettings {
   // Scraper
   intervalMinutes Int     @default(2)
   headless        Boolean @default(true)
-  minMatchScore   Int     @default(50)
   maxMinutesAgo   Int     @default(10)
 
   // UI

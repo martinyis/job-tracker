@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head') %>
+  <title>Command Center - Job Tracker</title>
+</head>
+<body>
+  <div class="cy-app">
+    <%- include('partials/sidebar', { activePage: 'control' }) %>
+
+    <main class="cy-main">
+      <div class="cy-page cc-page">
+
+        <% if (agentError) { %>
+          <div class="cy-error"><%= agentError %></div>
+        <% } %>
+        <% if (saved) { %>
+          <div class="cy-toast">Settings saved successfully.</div>
+        <% } %>
+        <% if (typeof notificationSent !== 'undefined' && notificationSent) { %>
+          <div class="cy-toast">Test notification sent. Check your Telegram.</div>
+        <% } %>
+        <% if (typeof notificationError !== 'undefined' && notificationError) { %>
+          <div class="cy-error"><%= notificationError %></div>
+        <% } %>
+
+        <!-- ============================================================
+             HEADER
+             ============================================================ -->
+        <div class="cc-header">
+          <div class="cc-header-left">
+            <h1>// command_center</h1>
+          </div>
+          <div class="cc-header-badges">
+            <% if (linkedinSessionValid) { %>
+              <span class="cy-status applied">LinkedIn: Connected</span>
+            <% } else { %>
+              <span class="cy-status new" title="Run npm run login to enable apply link extraction">LinkedIn: Not Connected</span>
+            <% } %>
+            <span class="cc-uptime" id="cc-uptime"></span>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             SYSTEM HEALTH BAR -- 5 metrics at a glance
+             ============================================================ -->
+        <%
+          var scraperHealthy = agentStatus.running && agentStatus.errorCount < 5;
+          var scraperWarning = agentStatus.running && agentStatus.errorCount > 0 && agentStatus.errorCount < 5;
+          var scraperError = agentStatus.errorCount >= 5;
+          var scraperOff = !agentStatus.running;
+
+          var enricherHealthy = enricherStatus.running && enricherStatus.errorCount < 5;
+          var enricherWarning = enricherStatus.running && enricherStatus.errorCount > 0 && enricherStatus.errorCount < 5;
+          var enricherError = enricherStatus.errorCount >= 5;
+          var enricherOff = !enricherStatus.running;
+
+          var scraperState_status = scraperOff ? 'off' : (scraperError ? 'error' : (scraperWarning ? 'warning' : 'healthy'));
+          var enricherState_status = enricherOff ? 'off' : (enricherError ? 'error' : (enricherWarning ? 'warning' : 'healthy'));
+
+          var overallErrors = (agentStatus.errorCount || 0) + (enricherStatus.errorCount || 0);
+          var overallStatus = 'off';
+          if (agentStatus.running || enricherStatus.running) {
+            overallStatus = overallErrors >= 5 ? 'error' : (overallErrors > 0 ? 'warning' : 'healthy');
+          }
+        %>
+
+        <div class="cc-health-bar">
+          <!-- System Status -->
+          <div class="cc-health-item <%= overallStatus %>" id="cc-sys-health">
+            <div class="cc-health-icon <%= overallStatus %>">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </div>
+            <div class="cc-health-info">
+              <div class="cc-health-label">System</div>
+              <div class="cc-health-value <%= overallStatus === 'healthy' ? 'green' : overallStatus === 'error' ? 'red' : overallStatus === 'warning' ? 'amber' : 'muted' %>" id="cc-sys-val">
+                <%= overallStatus === 'healthy' ? 'NOMINAL' : overallStatus === 'error' ? 'CRITICAL' : overallStatus === 'warning' ? 'DEGRADED' : 'OFFLINE' %>
+              </div>
+            </div>
+          </div>
+
+          <!-- Scraper -->
+          <div class="cc-health-item <%= scraperState_status %>" id="cc-scraper-health">
+            <div class="cc-health-icon <%= scraperState_status %>">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+            <div class="cc-health-info">
+              <div class="cc-health-label">Scraper</div>
+              <div class="cc-health-value <%= agentStatus.running ? 'green' : 'muted' %>" id="cc-scraper-val">
+                <%= agentStatus.running ? 'ONLINE' : 'OFFLINE' %>
+              </div>
+            </div>
+          </div>
+
+          <!-- Enricher -->
+          <div class="cc-health-item <%= enricherState_status %>" id="cc-enricher-health">
+            <div class="cc-health-icon <%= enricherState_status %>">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <div class="cc-health-info">
+              <div class="cc-health-label">Enricher</div>
+              <div class="cc-health-value <%= enricherStatus.running ? 'green' : 'muted' %>" id="cc-enricher-val">
+                <%= enricherStatus.running ? 'ONLINE' : 'OFFLINE' %>
+              </div>
+            </div>
+          </div>
+
+          <!-- Queue -->
+          <div class="cc-health-item <%= enrichmentQueueSize > 0 ? 'warning' : 'healthy' %>">
+            <div class="cc-health-icon <%= enrichmentQueueSize > 0 ? 'warning' : 'healthy' %>">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div class="cc-health-info">
+              <div class="cc-health-label">Queue</div>
+              <div class="cc-health-value <%= enrichmentQueueSize > 0 ? 'amber' : '' %>" id="cc-queue-val"><%= enrichmentQueueSize %></div>
+            </div>
+          </div>
+
+          <!-- Errors -->
+          <div class="cc-health-item <%= overallErrors === 0 ? 'healthy' : overallErrors >= 5 ? 'error' : 'warning' %>">
+            <div class="cc-health-icon <%= overallErrors === 0 ? 'healthy' : overallErrors >= 5 ? 'error' : 'warning' %>">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="cc-health-info">
+              <div class="cc-health-label">Errors</div>
+              <div class="cc-health-value <%= overallErrors === 0 ? 'green' : 'red' %>" id="cc-errors-val"><%= overallErrors %></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ============================================================
+             AGENT PANELS -- Side by Side
+             ============================================================ -->
+        <div class="cc-agents-grid">
+
+          <!-- ======== SCRAPER AGENT ======== -->
+          <div class="cc-agent <%= agentStatus.running ? 'running' : '' %>" id="scraper-panel">
+
+            <div class="cc-agent-head">
+              <div class="cc-agent-title">
+                <span class="cc-agent-dot <%= agentStatus.running ? 'active' : '' %>" id="scraper-dot"></span>
+                <span class="cc-agent-name" id="scraper-status-text"><%= agentStatus.running ? 'Scraper' : 'Scraper' %></span>
+                <span class="cc-agent-status-tag <%= agentStatus.running ? 'running' : 'stopped' %>" id="scraper-tag"><%= agentStatus.running ? 'Running' : 'Stopped' %></span>
+              </div>
+              <div id="scraper-actions">
+                <% if (agentStatus.running) { %>
+                  <form method="POST" action="/agent/stop" class="inline-nav-form">
+                    <button type="submit" class="cy-btn-agent-stop">Stop</button>
+                  </form>
+                <% } else { %>
+                  <form method="POST" action="/agent/start" class="inline-nav-form">
+                    <button type="submit" class="cy-btn-agent-start">Start</button>
+                  </form>
+                <% } %>
+              </div>
+            </div>
+
+            <div class="cc-agent-stats">
+              <div class="cc-agent-stat">
+                <span class="cc-agent-stat-label">Cycle</span>
+                <span class="cc-agent-stat-value" id="scraper-cycle">
+                  <% if (!agentStatus.running) { %>
+                    <span class="cc-dim">--</span>
+                  <% } else if (agentStatus.isRunningCycle) { %>
+                    <span class="cc-live">ACTIVE</span>
+                  <% } else { %>
+                    <span class="cc-dim">IDLE</span>
+                  <% } %>
+                </span>
+              </div>
+              <div class="cc-agent-stat">
+                <span class="cc-agent-stat-label">Last Run</span>
+                <span class="cc-agent-stat-value" id="scraper-last-run"><%= scraperState.lastRunAt ? new Date(scraperState.lastRunAt).toLocaleString() : '--' %></span>
+              </div>
+              <div class="cc-agent-stat">
+                <span class="cc-agent-stat-label">Last OK</span>
+                <span class="cc-agent-stat-value" id="scraper-last-success"><%= scraperState.lastSuccessAt ? new Date(scraperState.lastSuccessAt).toLocaleString() : '--' %></span>
+              </div>
+              <div class="cc-agent-stat">
+                <span class="cc-agent-stat-label">Errors</span>
+                <span class="cc-agent-stat-value" id="scraper-errors">
+                  <% if (agentStatus.errorCount === 0) { %>
+                    <span class="cc-live">0</span>
+                  <% } else if (agentStatus.errorCount >= 5) { %>
+                    <span class="cc-err"><%= agentStatus.errorCount %> PAUSED</span>
+                  <% } else { %>
+                    <span class="cc-warn"><%= agentStatus.errorCount %></span>
+                  <% } %>
+                </span>
+              </div>
+              <% if (agentStatus.running && agentStatus.pid) { %>
+                <div class="cc-agent-stat" id="scraper-pid-detail">
+                  <span class="cc-agent-stat-label">PID</span>
+                  <span class="cc-agent-stat-value" id="scraper-pid"><%= agentStatus.pid %></span>
+                </div>
+              <% } %>
+            </div>
+
+            <!-- Terminal -->
+            <div class="cc-terminal">
+              <div class="cc-terminal-head">
+                <div class="cc-terminal-title">
+                  <span class="cc-terminal-dots"><span class="cc-terminal-dot r"></span><span class="cc-terminal-dot y"></span><span class="cc-terminal-dot g"></span></span>
+                  agent.log
+                </div>
+                <div class="cc-terminal-controls">
+                  <label class="cc-terminal-scroll">
+                    <input type="checkbox" id="log-autoscroll" checked> auto
+                  </label>
+                  <button type="button" class="cc-terminal-btn" id="log-clear">CLR</button>
+                </div>
+              </div>
+              <div class="cc-terminal-body" id="log-body">
+                <pre class="cc-terminal-content cc-loading" id="log-content"></pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- ======== ENRICHER AGENT ======== -->
+          <div class="cc-agent <%= enricherStatus.running ? 'running' : '' %>" id="enricher-panel">
+
+            <div class="cc-agent-head">
+              <div class="cc-agent-title">
+                <span class="cc-agent-dot <%= enricherStatus.running ? 'active' : '' %>" id="enricher-dot"></span>
+                <span class="cc-agent-name">Enricher</span>
+                <span class="cc-agent-status-tag <%= enricherStatus.running ? 'running' : 'stopped' %>" id="enricher-tag"><%= enricherStatus.running ? 'Running' : 'Stopped' %></span>
+              </div>
+              <div id="enricher-actions">
+                <% if (enricherStatus.running) { %>
+                  <form method="POST" action="/enricher/stop" class="inline-nav-form">
+                    <button type="submit" class="cy-btn-agent-stop">Stop</button>
+                  </form>
+                <% } else { %>
+                  <form method="POST" action="/enricher/start" class="inline-nav-form">
+                    <button type="submit" class="cy-btn-agent-start">Start</button>
+                  </form>
+                <% } %>
+              </div>
+            </div>
+
+            <div class="cc-agent-stats">
+              <div class="cc-agent-stat">
+                <span class="cc-agent-stat-label">Status</span>
+                <span class="cc-agent-stat-value" id="enricher-processing">
+                  <% if (!enricherStatus.running) { %>
+                    <span class="cc-dim">--</span>
+                  <% } else if (enricherStatus.isProcessing) { %>
+                    <span class="cc-live">PROCESSING</span>
+                  <% } else { %>
+                    <span class="cc-dim">IDLE</span>
+                  <% } %>
+                </span>
+              </div>
+              <div class="cc-agent-stat">
+                <span class="cc-agent-stat-label">Queue</span>
+                <span class="cc-agent-stat-value" id="enricher-queue"><%= enrichmentQueueSize > 0 ? '<span class="cc-warn">' + enrichmentQueueSize + '</span>' : enrichmentQueueSize %></span>
+              </div>
+              <div class="cc-agent-stat">
+                <span class="cc-agent-stat-label">Done</span>
+                <span class="cc-agent-stat-value" id="enricher-total"><%= enricherStatus.totalEnriched %></span>
+              </div>
+              <div class="cc-agent-stat">
+                <span class="cc-agent-stat-label">Failed</span>
+                <span class="cc-agent-stat-value" id="enricher-failed"><%= enricherStatus.totalFailed > 0 ? '<span class="cc-err">' + enricherStatus.totalFailed + '</span>' : enricherStatus.totalFailed %></span>
+              </div>
+              <div class="cc-agent-stat">
+                <span class="cc-agent-stat-label">Errors</span>
+                <span class="cc-agent-stat-value" id="enricher-errors">
+                  <% if (enricherStatus.errorCount === 0) { %>
+                    <span class="cc-live">0</span>
+                  <% } else if (enricherStatus.errorCount >= 5) { %>
+                    <span class="cc-err"><%= enricherStatus.errorCount %> PAUSED</span>
+                  <% } else { %>
+                    <span class="cc-warn"><%= enricherStatus.errorCount %></span>
+                  <% } %>
+                </span>
+              </div>
+              <% if (enricherStatus.running && enricherStatus.pid) { %>
+                <div class="cc-agent-stat" id="enricher-pid-detail">
+                  <span class="cc-agent-stat-label">PID</span>
+                  <span class="cc-agent-stat-value" id="enricher-pid"><%= enricherStatus.pid %></span>
+                </div>
+              <% } %>
+            </div>
+
+            <!-- Terminal -->
+            <div class="cc-terminal">
+              <div class="cc-terminal-head">
+                <div class="cc-terminal-title">
+                  <span class="cc-terminal-dots"><span class="cc-terminal-dot r"></span><span class="cc-terminal-dot y"></span><span class="cc-terminal-dot g"></span></span>
+                  enricher.log
+                </div>
+                <div class="cc-terminal-controls">
+                  <label class="cc-terminal-scroll">
+                    <input type="checkbox" id="enricher-log-autoscroll" checked> auto
+                  </label>
+                  <button type="button" class="cc-terminal-btn" id="enricher-log-clear">CLR</button>
+                </div>
+              </div>
+              <div class="cc-terminal-body" id="enricher-log-body">
+                <pre class="cc-terminal-content cc-loading" id="enricher-log-content"></pre>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ============================================================
+             BOTTOM ROW: Configuration + Integrations
+             ============================================================ -->
+        <div class="cc-bottom-grid">
+
+          <!-- Scraper Configuration -->
+          <div class="cc-config-panel">
+            <div class="cc-config-head">
+              <span class="cc-config-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Scraper Config
+              </span>
+            </div>
+            <div class="cc-config-body">
+              <form method="POST" action="/control/scraper-settings" class="cc-inline-form">
+                <div class="cc-field">
+                  <span class="cc-field-label">Interval</span>
+                  <input type="number" class="cc-field-input" id="SCRAPE_INTERVAL_MINUTES" name="SCRAPE_INTERVAL_MINUTES"
+                    value="<%= scraperSettings.intervalMinutes %>" min="1" max="60">
+                  <span class="cc-field-hint">min between cycles</span>
+                </div>
+                <div class="cc-field">
+                  <span class="cc-field-label">Browser</span>
+                  <label class="cc-field-check">
+                    <input type="checkbox" name="HEADLESS_MODE" value="true"
+                      <%= scraperSettings.headless ? 'checked' : '' %>>
+                    Headless mode
+                  </label>
+                  <span class="cc-field-hint">uncheck to debug</span>
+                </div>
+                <button type="submit" class="cc-save-btn">Save Config</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Integrations -->
+          <div class="cc-config-panel">
+            <div class="cc-config-head">
+              <span class="cc-config-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                Integrations
+              </span>
+            </div>
+            <div class="cc-config-body">
+              <!-- LinkedIn -->
+              <div class="cc-integration-row">
+                <div class="cc-integration-info">
+                  <div class="cc-integration-icon <%= linkedinSessionValid ? 'connected' : 'disconnected' %>">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg>
+                  </div>
+                  <span class="cc-integration-name">LinkedIn</span>
+                </div>
+                <span class="cc-integration-status <%= linkedinSessionValid ? 'connected' : 'disconnected' %>">
+                  <%= linkedinSessionValid ? 'Connected' : 'Not Connected' %>
+                </span>
+              </div>
+
+              <!-- Telegram -->
+              <div class="cc-integration-row">
+                <div class="cc-integration-info">
+                  <div class="cc-integration-icon <%= telegramConfigured ? 'connected' : 'disconnected' %>">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </div>
+                  <span class="cc-integration-name">Telegram</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span class="cc-integration-status <%= telegramConfigured ? 'connected' : 'disconnected' %>">
+                    <%= telegramConfigured ? 'Configured' : 'Not Set' %>
+                  </span>
+                  <% if (telegramConfigured) { %>
+                    <form method="POST" action="/notifications/test" class="inline-nav-form">
+                      <button type="submit" class="cc-test-btn">Test</button>
+                    </form>
+                  <% } %>
+                </div>
+              </div>
+
+              <% if (!telegramConfigured) { %>
+                <div class="cc-env-hint">
+                  Set <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code> in <code>.env</code> to enable alerts.
+                </div>
+              <% } %>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ================================================================
+    // AUTO-REFRESH: Scraper + Enricher status every 5 seconds
+    // Preserves all original element IDs and update logic
+    // ================================================================
+    (function() {
+      async function refreshScraperStatus() {
+        try {
+          var res = await fetch('/agent/status');
+          if (!res.ok) return;
+          var s = await res.json();
+
+          // Dot
+          var dot = document.getElementById('scraper-dot');
+          if (s.running) { dot.classList.add('active'); } else { dot.classList.remove('active'); }
+
+          // Tag
+          var tag = document.getElementById('scraper-tag');
+          if (tag) {
+            tag.textContent = s.running ? 'Running' : 'Stopped';
+            tag.className = 'cc-agent-status-tag ' + (s.running ? 'running' : 'stopped');
+          }
+
+          // Panel running class
+          var panel = document.getElementById('scraper-panel');
+          if (s.running) { panel.classList.add('running'); } else { panel.classList.remove('running'); }
+
+          // Actions
+          var actions = document.getElementById('scraper-actions');
+          if (s.running) {
+            actions.innerHTML = '<form method="POST" action="/agent/stop" class="inline-nav-form"><button type="submit" class="cy-btn-agent-stop">Stop</button></form>';
+          } else {
+            actions.innerHTML = '<form method="POST" action="/agent/start" class="inline-nav-form"><button type="submit" class="cy-btn-agent-start">Start</button></form>';
+          }
+
+          // Cycle
+          var cycle = document.getElementById('scraper-cycle');
+          if (!s.running) {
+            cycle.innerHTML = '<span class="cc-dim">--</span>';
+          } else if (s.isRunningCycle) {
+            cycle.innerHTML = '<span class="cc-live">ACTIVE</span>';
+          } else {
+            cycle.innerHTML = '<span class="cc-dim">IDLE</span>';
+          }
+
+          // Last run / success
+          document.getElementById('scraper-last-run').textContent =
+            s.lastRunAt ? new Date(s.lastRunAt).toLocaleString() : '--';
+          document.getElementById('scraper-last-success').textContent =
+            s.lastSuccessAt ? new Date(s.lastSuccessAt).toLocaleString() : '--';
+
+          // Errors
+          var errEl = document.getElementById('scraper-errors');
+          if (s.errorCount === 0) {
+            errEl.innerHTML = '<span class="cc-live">0</span>';
+          } else if (s.errorCount >= 5) {
+            errEl.innerHTML = '<span class="cc-err">' + s.errorCount + ' PAUSED</span>';
+          } else {
+            errEl.innerHTML = '<span class="cc-warn">' + s.errorCount + '</span>';
+          }
+
+          // PID
+          var pidDetail = document.getElementById('scraper-pid-detail');
+          if (s.running && s.pid) {
+            if (!pidDetail) {
+              var stats = document.querySelector('#scraper-panel .cc-agent-stats');
+              pidDetail = document.createElement('div');
+              pidDetail.className = 'cc-agent-stat';
+              pidDetail.id = 'scraper-pid-detail';
+              pidDetail.innerHTML = '<span class="cc-agent-stat-label">PID</span><span class="cc-agent-stat-value" id="scraper-pid">' + s.pid + '</span>';
+              stats.appendChild(pidDetail);
+            } else {
+              document.getElementById('scraper-pid').textContent = s.pid;
+            }
+          } else if (pidDetail) {
+            pidDetail.remove();
+          }
+
+          // Health bar updates
+          var scraperHealth = document.getElementById('cc-scraper-health');
+          var scraperVal = document.getElementById('cc-scraper-val');
+          if (s.running) {
+            scraperVal.textContent = 'ONLINE';
+            scraperVal.className = 'cc-health-value green';
+            var hStatus = s.errorCount >= 5 ? 'error' : s.errorCount > 0 ? 'warning' : 'healthy';
+            scraperHealth.className = 'cc-health-item ' + hStatus;
+            scraperHealth.querySelector('.cc-health-icon').className = 'cc-health-icon ' + hStatus;
+          } else {
+            scraperVal.textContent = 'OFFLINE';
+            scraperVal.className = 'cc-health-value muted';
+            scraperHealth.className = 'cc-health-item off';
+            scraperHealth.querySelector('.cc-health-icon').className = 'cc-health-icon off';
+          }
+        } catch (e) {}
+      }
+
+      async function refreshEnricherStatus() {
+        try {
+          var res = await fetch('/enricher/status');
+          if (!res.ok) return;
+          var s = await res.json();
+
+          // Dot
+          var dot = document.getElementById('enricher-dot');
+          if (s.running) { dot.classList.add('active'); } else { dot.classList.remove('active'); }
+
+          // Tag
+          var tag = document.getElementById('enricher-tag');
+          if (tag) {
+            tag.textContent = s.running ? 'Running' : 'Stopped';
+            tag.className = 'cc-agent-status-tag ' + (s.running ? 'running' : 'stopped');
+          }
+
+          // Panel running class
+          var panel = document.getElementById('enricher-panel');
+          if (s.running) { panel.classList.add('running'); } else { panel.classList.remove('running'); }
+
+          // Actions
+          var actions = document.getElementById('enricher-actions');
+          if (s.running) {
+            actions.innerHTML = '<form method="POST" action="/enricher/stop" class="inline-nav-form"><button type="submit" class="cy-btn-agent-stop">Stop</button></form>';
+          } else {
+            actions.innerHTML = '<form method="POST" action="/enricher/start" class="inline-nav-form"><button type="submit" class="cy-btn-agent-start">Start</button></form>';
+          }
+
+          // Processing status
+          var processing = document.getElementById('enricher-processing');
+          if (!s.running) {
+            processing.innerHTML = '<span class="cc-dim">--</span>';
+          } else if (s.isProcessing) {
+            processing.innerHTML = '<span class="cc-live">PROCESSING</span>';
+          } else {
+            processing.innerHTML = '<span class="cc-dim">IDLE</span>';
+          }
+
+          // Queue
+          var queueEl = document.getElementById('enricher-queue');
+          if (s.queueSize > 0) {
+            queueEl.innerHTML = '<span class="cc-warn">' + s.queueSize + '</span>';
+          } else {
+            queueEl.textContent = s.queueSize;
+          }
+          // Also update health bar queue
+          var queueVal = document.getElementById('cc-queue-val');
+          if (queueVal) queueVal.textContent = s.queueSize;
+
+          // Enriched total
+          document.getElementById('enricher-total').textContent = s.totalEnriched;
+
+          // Failed
+          var failedEl = document.getElementById('enricher-failed');
+          if (s.totalFailed > 0) {
+            failedEl.innerHTML = '<span class="cc-err">' + s.totalFailed + '</span>';
+          } else {
+            failedEl.textContent = s.totalFailed;
+          }
+
+          // Errors
+          var errEl = document.getElementById('enricher-errors');
+          if (s.errorCount === 0) {
+            errEl.innerHTML = '<span class="cc-live">0</span>';
+          } else if (s.errorCount >= 5) {
+            errEl.innerHTML = '<span class="cc-err">' + s.errorCount + ' PAUSED</span>';
+          } else {
+            errEl.innerHTML = '<span class="cc-warn">' + s.errorCount + '</span>';
+          }
+
+          // PID
+          var pidDetail = document.getElementById('enricher-pid-detail');
+          if (s.running && s.pid) {
+            if (!pidDetail) {
+              var stats = document.querySelector('#enricher-panel .cc-agent-stats');
+              pidDetail = document.createElement('div');
+              pidDetail.className = 'cc-agent-stat';
+              pidDetail.id = 'enricher-pid-detail';
+              pidDetail.innerHTML = '<span class="cc-agent-stat-label">PID</span><span class="cc-agent-stat-value" id="enricher-pid">' + s.pid + '</span>';
+              stats.appendChild(pidDetail);
+            } else {
+              document.getElementById('enricher-pid').textContent = s.pid;
+            }
+          } else if (pidDetail) {
+            pidDetail.remove();
+          }
+
+          // Health bar updates
+          var enricherHealth = document.getElementById('cc-enricher-health');
+          var enricherVal = document.getElementById('cc-enricher-val');
+          if (s.running) {
+            enricherVal.textContent = 'ONLINE';
+            enricherVal.className = 'cc-health-value green';
+            var hStatus = s.errorCount >= 5 ? 'error' : s.errorCount > 0 ? 'warning' : 'healthy';
+            enricherHealth.className = 'cc-health-item ' + hStatus;
+            enricherHealth.querySelector('.cc-health-icon').className = 'cc-health-icon ' + hStatus;
+          } else {
+            enricherVal.textContent = 'OFFLINE';
+            enricherVal.className = 'cc-health-value muted';
+            enricherHealth.className = 'cc-health-item off';
+            enricherHealth.querySelector('.cc-health-icon').className = 'cc-health-icon off';
+          }
+        } catch (e) {}
+      }
+
+      // Update overall system health in the health bar
+      async function refreshSystemHealth() {
+        try {
+          var scraperRes = await fetch('/agent/status');
+          var enricherRes = await fetch('/enricher/status');
+          if (!scraperRes.ok || !enricherRes.ok) return;
+          var sc = await scraperRes.json();
+          var en = await enricherRes.json();
+
+          var totalErrors = (sc.errorCount || 0) + (en.errorCount || 0);
+          var anyRunning = sc.running || en.running;
+          var status = 'off';
+          if (anyRunning) {
+            status = totalErrors >= 5 ? 'error' : totalErrors > 0 ? 'warning' : 'healthy';
+          }
+
+          var sysHealth = document.getElementById('cc-sys-health');
+          var sysVal = document.getElementById('cc-sys-val');
+          var errorsVal = document.getElementById('cc-errors-val');
+
+          var statusLabels = { healthy: 'NOMINAL', warning: 'DEGRADED', error: 'CRITICAL', off: 'OFFLINE' };
+          var statusColors = { healthy: 'green', warning: 'amber', error: 'red', off: 'muted' };
+
+          sysVal.textContent = statusLabels[status];
+          sysVal.className = 'cc-health-value ' + statusColors[status];
+          sysHealth.className = 'cc-health-item ' + status;
+          sysHealth.querySelector('.cc-health-icon').className = 'cc-health-icon ' + status;
+
+          errorsVal.textContent = totalErrors;
+          errorsVal.className = 'cc-health-value ' + (totalErrors === 0 ? 'green' : 'red');
+        } catch (e) {}
+      }
+
+      setInterval(function() {
+        refreshScraperStatus();
+        refreshEnricherStatus();
+        // System health refreshes from the same data with a slight delay
+        setTimeout(refreshSystemHealth, 500);
+      }, 5000);
+    })();
+
+    // ================================================================
+    // LOG VIEWERS -- Both auto-start polling (always visible)
+    // ================================================================
+
+    // Scraper logs
+    (function() {
+      var body = document.getElementById('log-body');
+      var content = document.getElementById('log-content');
+      var autoScroll = document.getElementById('log-autoscroll');
+      var clearBtn = document.getElementById('log-clear');
+
+      clearBtn.addEventListener('click', function() {
+        content.textContent = '';
+        content.classList.add('cc-loading');
+      });
+
+      async function fetchLogs() {
+        try {
+          var res = await fetch('/agent/logs?lines=150');
+          if (!res.ok) return;
+          var data = await res.json();
+          content.classList.remove('cc-loading');
+          if (data.lines.length === 0) {
+            content.textContent = '> awaiting agent output...';
+            content.classList.add('cc-loading');
+            return;
+          }
+          var text = (data.truncated ? '--- older logs truncated ---\n' : '') + data.lines.join('\n');
+          content.textContent = text;
+          if (autoScroll.checked) {
+            body.scrollTop = body.scrollHeight;
+          }
+        } catch (e) {}
+      }
+
+      // Auto-start polling -- logs are always visible
+      fetchLogs();
+      setInterval(fetchLogs, 3000);
+    })();
+
+    // Enricher logs
+    (function() {
+      var body = document.getElementById('enricher-log-body');
+      var content = document.getElementById('enricher-log-content');
+      var autoScroll = document.getElementById('enricher-log-autoscroll');
+      var clearBtn = document.getElementById('enricher-log-clear');
+
+      clearBtn.addEventListener('click', function() {
+        content.textContent = '';
+        content.classList.add('cc-loading');
+      });
+
+      async function fetchLogs() {
+        try {
+          var res = await fetch('/enricher/logs?lines=150');
+          if (!res.ok) return;
+          var data = await res.json();
+          content.classList.remove('cc-loading');
+          if (data.lines.length === 0) {
+            content.textContent = '> awaiting enricher output...';
+            content.classList.add('cc-loading');
+            return;
+          }
+          var text = (data.truncated ? '--- older logs truncated ---\n' : '') + data.lines.join('\n');
+          content.textContent = text;
+          if (autoScroll.checked) {
+            body.scrollTop = body.scrollHeight;
+          }
+        } catch (e) {}
+      }
+
+      fetchLogs();
+      setInterval(fetchLogs, 3000);
+    })();
+
+    // ================================================================
+    // UPTIME CLOCK
+    // ================================================================
+    (function() {
+      var startTime = Date.now();
+      var el = document.getElementById('cc-uptime');
+      function pad(n) { return n < 10 ? '0' + n : n; }
+      function update() {
+        var diff = Math.floor((Date.now() - startTime) / 1000);
+        var h = Math.floor(diff / 3600);
+        var m = Math.floor((diff % 3600) / 60);
+        var s = diff % 60;
+        el.textContent = 'session ' + pad(h) + ':' + pad(m) + ':' + pad(s);
+      }
+      update();
+      setInterval(update, 1000);
+    })();
+  </script>
+</body>
+</html>

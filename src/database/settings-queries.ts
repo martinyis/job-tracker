@@ -1,8 +1,6 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './client';
 import { parseJsonArray, toJsonArray } from './profile-queries';
-
-/** JSON array fields in AppSettings that need parsing/stringifying */
-const JSON_ARRAY_FIELDS = ['searchKeywords', 'searchLocations'] as const;
 
 export interface AppSettingsParsed {
   id: string;
@@ -11,10 +9,19 @@ export interface AppSettingsParsed {
   geoId: string;
   intervalMinutes: number;
   headless: boolean;
-  minMatchScore: number;
   maxMinutesAgo: number;
   uiPort: number;
   updatedAt: Date;
+}
+
+export interface AppSettingsUpdate {
+  searchKeywords?: string[];
+  searchLocations?: string[];
+  geoId?: string;
+  intervalMinutes?: number;
+  headless?: boolean;
+  maxMinutesAgo?: number;
+  uiPort?: number;
 }
 
 /**
@@ -42,19 +49,21 @@ export async function getOrCreateSettings(): Promise<AppSettingsParsed> {
 /**
  * Partial update of AppSettings. Array fields are stringified before saving.
  */
-export async function updateSettings(data: Record<string, unknown>): Promise<AppSettingsParsed> {
-  // Stringify any JSON array fields
-  const dbData = { ...data };
-  for (const field of JSON_ARRAY_FIELDS) {
-    if (Array.isArray(dbData[field])) {
-      dbData[field] = toJsonArray(dbData[field] as string[]);
-    }
-  }
+export async function updateSettings(data: AppSettingsUpdate): Promise<AppSettingsParsed> {
+  const dbData: Prisma.AppSettingsCreateManyInput = { id: 'singleton' };
+
+  if (data.searchKeywords !== undefined) dbData.searchKeywords = toJsonArray(data.searchKeywords);
+  if (data.searchLocations !== undefined) dbData.searchLocations = toJsonArray(data.searchLocations);
+  if (data.geoId !== undefined) dbData.geoId = data.geoId;
+  if (data.intervalMinutes !== undefined) dbData.intervalMinutes = data.intervalMinutes;
+  if (data.headless !== undefined) dbData.headless = data.headless;
+  if (data.maxMinutesAgo !== undefined) dbData.maxMinutesAgo = data.maxMinutesAgo;
+  if (data.uiPort !== undefined) dbData.uiPort = data.uiPort;
 
   const settings = await prisma.appSettings.upsert({
     where: { id: 'singleton' },
     update: dbData,
-    create: { id: 'singleton', ...dbData },
+    create: dbData,
   });
 
   return {

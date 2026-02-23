@@ -1,126 +1,13 @@
 import OpenAI from 'openai';
 import { config } from '../config';
 import { logger } from '../logger';
-import { buildJobMatchPrompt, buildRelevanceFilterPrompt, FilteringRules } from './prompts';
-
-/** Result returned from the AI model's job matching */
-export interface MatchResult {
-  score: number;
-  reason: string;
-  keyMatches: string[];
-}
-
-/** Job data required for matching */
-export interface JobForMatching {
-  title: string;
-  company: string;
-  location: string;
-  description: string;
-}
+import { buildRelevanceFilterPrompt, FilteringRules } from './prompts';
 
 function createClient(): OpenAI {
   return new OpenAI({
     apiKey: config.nvidia.apiKey,
     baseURL: config.nvidia.baseURL,
   });
-}
-
-/**
- * Scores a single job against the candidate profile using Kimi K2.5.
- * Returns a structured match result with score, reason, and key matches.
- */
-export async function matchJob(
-  profileSummary: string,
-  job: JobForMatching,
-): Promise<MatchResult> {
-  const client = createClient();
-
-  const truncatedDescription =
-    job.description.length > config.scraper.maxDescriptionLength
-      ? job.description.slice(0, config.scraper.maxDescriptionLength) + '...'
-      : job.description;
-
-  const prompt = buildJobMatchPrompt(profileSummary, {
-    ...job,
-    description: truncatedDescription,
-  });
-
-  try {
-    const response = await client.chat.completions.create({
-      model: config.nvidia.model,
-      max_tokens: config.nvidia.maxTokens,
-      temperature: config.nvidia.temperature,
-      top_p: 1,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const content = response.choices[0]?.message?.content;
-    if (!content) {
-      throw new Error('Model did not return a text response');
-    }
-
-    const cleaned = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const parsed = JSON.parse(cleaned) as MatchResult;
-
-    if (
-      typeof parsed.score !== 'number' ||
-      typeof parsed.reason !== 'string' ||
-      !Array.isArray(parsed.keyMatches)
-    ) {
-      throw new Error('Invalid match result structure');
-    }
-
-    parsed.score = Math.max(0, Math.min(100, Math.round(parsed.score)));
-
-    logger.info('Job matched', {
-      title: job.title,
-      company: job.company,
-      score: parsed.score,
-    });
-
-    return parsed;
-  } catch (error) {
-    logger.error('Failed to match job', {
-      title: job.title,
-      company: job.company,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    throw error;
-  }
-}
-
-/**
- * Matches multiple jobs in parallel with concurrency control.
- * Processes at most `maxConcurrent` jobs at a time.
- */
-export async function matchJobsBatch(
-  profileSummary: string,
-  jobs: JobForMatching[],
-  maxConcurrent: number = config.scraper.maxConcurrentMatches,
-): Promise<(MatchResult | null)[]> {
-  const results: (MatchResult | null)[] = new Array(jobs.length).fill(null);
-
-  for (let i = 0; i < jobs.length; i += maxConcurrent) {
-    const batch = jobs.slice(i, i + maxConcurrent);
-    const batchResults = await Promise.allSettled(
-      batch.map((job) => matchJob(profileSummary, job)),
-    );
-
-    for (let j = 0; j < batchResults.length; j++) {
-      const result = batchResults[j];
-      if (result.status === 'fulfilled') {
-        results[i + j] = result.value;
-      } else {
-        logger.error('Job match failed in batch', {
-          job: jobs[i + j].title,
-          error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-        });
-        results[i + j] = null;
-      }
-    }
-  }
-
-  return results;
 }
 
 /** Minimal job info needed for the batch relevance filter */

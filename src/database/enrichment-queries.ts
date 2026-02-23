@@ -151,9 +151,21 @@ export async function markJobEnrichmentFailed(id: string) {
   });
 }
 
-export async function markJobEnrichmentSkipped(id: string) {
-  return prisma.job.update({
-    where: { id },
-    data: { enrichmentStatus: 'skipped' },
+export async function getJobForTestNotification() {
+  const urgent = await prisma.job.findFirst({
+    where: { priority: 'urgent', enrichmentStatus: 'enriched' },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (urgent) return urgent;
+
+  const high = await prisma.job.findFirst({
+    where: { priority: 'high', enrichmentStatus: 'enriched' },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (high) return high;
+
+  return prisma.job.findFirst({
+    where: { enrichmentStatus: 'enriched' },
+    orderBy: { createdAt: 'desc' },
   });
 }

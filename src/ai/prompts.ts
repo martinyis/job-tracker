@@ -5,7 +5,7 @@
 
 /**
  * Prompt to generate a structured profile summary from a resume and context.
- * Used once on first run; result is cached in profile-summary.json.
+ * Used once on first run; result is cached in the database.
  */
 export function buildResumeSummaryPrompt(additionalContext: string): string {
   return `Analyze the provided resume PDF and additional context below. Create a concise profile summary for job matching.
@@ -47,42 +47,6 @@ Output ONLY valid JSON (no markdown, no code fences). Use this exact structure:
     "techStack": ["..."]
   }
 }`;
-}
-
-/**
- * Prompt to score a job posting against the candidate profile.
- * Used for every new job discovered by the scraper.
- */
-export function buildJobMatchPrompt(
-  profileSummary: string,
-  job: { title: string; company: string; location: string; description: string },
-): string {
-  return `You are an expert job matcher. Score this job against the candidate profile.
-
-CANDIDATE PROFILE:
-${profileSummary}
-
-JOB POSTING:
-Title: ${job.title}
-Company: ${job.company}
-Location: ${job.location}
-Description: ${job.description}
-
-Respond with ONLY valid JSON (no markdown, no code fences):
-{
-  "score": <number 0-100>,
-  "reason": "<2-3 sentence explanation>",
-  "keyMatches": ["match1", "match2", "match3"]
-}
-
-Scoring criteria:
-- Required skills match (40 points)
-- Experience level match (20 points)
-- Industry/domain relevance (20 points)
-- Role alignment with career goals (20 points)
-
-Be strict: 50 = decent match, 70 = good match, 85+ = excellent match.
-A score below 50 means the job is not a strong fit.`;
 }
 
 /** Filtering rules passed alongside the profile summary */

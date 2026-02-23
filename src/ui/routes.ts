@@ -10,10 +10,13 @@ import {
   getScraperState,
   JobStatus,
 } from '../database/queries';
-import { getEnrichmentQueueSize } from '../database/enrichment-queries';
+import { getEnrichmentQueueSize, getJobForTestNotification } from '../database/enrichment-queries';
+import { getOrCreateSettings, updateSettings } from '../database/settings-queries';
+import { isTelegramConfigured, sendTestNotification } from '../notifications/telegram';
 import { loadCookies, areCookiesValid } from '../scraper/linkedin-auth';
 import { getAgentStatus, startAgent, stopAgent } from './agent-manager';
 import { getEnricherStatus, startEnricher, stopEnricher } from './enricher-manager';
+import { config, reloadConfig } from '../config';
 import { logger } from '../logger';
 
 export const router = Router();
@@ -48,18 +51,12 @@ router.get('/', async (req: Request, res: Response) => {
     const statusFilter = req.query.status as JobStatus | undefined;
     const validFilter = statusFilter && VALID_STATUSES.includes(statusFilter) ? statusFilter : undefined;
 
-    const [jobs, stats, scraperState, agentStatus, enricherStatus, enrichmentQueueSize] = await Promise.all([
+    const [jobs, stats, agentStatus, enricherStatus] = await Promise.all([
       getJobs(validFilter),
       getStats(),
-      getScraperState(),
       getAgentStatus(),
       getEnricherStatus(),
-      getEnrichmentQueueSize(),
     ]);
-
-    // Check LinkedIn session status
-    const cookies = loadCookies();
-    const linkedinSessionValid = cookies !== null && areCookiesValid(cookies);
 
     // Parse JSON fields for each job
     const parsedJobs = jobs.map((job) => ({
@@ -70,22 +67,54 @@ router.get('/', async (req: Request, res: Response) => {
       contactPeopleParsed: safeParseJson(job.contactPeople, []),
     }));
 
-    const agentError = req.query.agentError as string | undefined;
-
     res.render('jobs', {
       jobs: parsedJobs,
       stats,
-      scraperState,
       agentStatus,
       enricherStatus,
-      enrichmentQueueSize,
-      agentError,
-      linkedinSessionValid,
       currentFilter: validFilter || 'all',
       statuses: VALID_STATUSES,
     });
   } catch (error) {
     logger.error('Error rendering jobs page', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+/**
+ * GET /jobs — Jobs board (kanban or list view).
+ */
+router.get('/jobs', async (req: Request, res: Response) => {
+  try {
+    const statusFilter = req.query.status as JobStatus | undefined;
+    const validFilter = statusFilter && VALID_STATUSES.includes(statusFilter) ? statusFilter : undefined;
+    const view = req.query.view === 'list' ? 'list' : 'kanban';
+
+    const [jobs, stats] = await Promise.all([
+      getJobs(validFilter),
+      getStats(),
+    ]);
+
+    // Parse JSON fields for each job
+    const parsedJobs = jobs.map((job) => ({
+      ...job,
+      keyMatchesParsed: safeParseJsonArray(job.keyMatches),
+      actionItemsParsed: safeParseJsonArray(job.actionItems),
+      redFlagsParsed: safeParseJsonArray(job.redFlags),
+      contactPeopleParsed: safeParseJson(job.contactPeople, []),
+    }));
+
+    res.render('kanban', {
+      jobs: parsedJobs,
+      stats,
+      currentFilter: validFilter || 'all',
+      currentView: view,
+      statuses: VALID_STATUSES,
+    });
+  } catch (error) {
+    logger.error('Error rendering jobs board page', {
       error: error instanceof Error ? error.message : String(error),
     });
     res.status(500).send('Internal Server Error');
@@ -192,11 +221,11 @@ router.get('/job/:id', async (req: Request, res: Response) => {
 router.post('/agent/start', async (_req: Request, res: Response) => {
   try {
     await startAgent();
-    res.redirect('/');
+    res.redirect('/control');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to start agent', { error: message });
-    res.redirect(`/?agentError=${encodeURIComponent(message)}`);
+    res.redirect(`/control?agentError=${encodeURIComponent(message)}`);
   }
 });
 
@@ -206,11 +235,11 @@ router.post('/agent/start', async (_req: Request, res: Response) => {
 router.post('/agent/stop', async (_req: Request, res: Response) => {
   try {
     await stopAgent();
-    res.redirect('/');
+    res.redirect('/control');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to stop agent', { error: message });
-    res.redirect(`/?agentError=${encodeURIComponent(message)}`);
+    res.redirect(`/control?agentError=${encodeURIComponent(message)}`);
   }
 });
 
@@ -270,22 +299,22 @@ router.get('/agent/logs', (_req: Request, res: Response) => {
 router.post('/enricher/start', async (_req: Request, res: Response) => {
   try {
     await startEnricher();
-    res.redirect('/');
+    res.redirect('/control');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to start enricher', { error: message });
-    res.redirect(`/?agentError=${encodeURIComponent(message)}`);
+    res.redirect(`/control?agentError=${encodeURIComponent(message)}`);
   }
 });
 
 router.post('/enricher/stop', async (_req: Request, res: Response) => {
   try {
     await stopEnricher();
-    res.redirect('/');
+    res.redirect('/control');
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     logger.error('Failed to stop enricher', { error: message });
-    res.redirect(`/?agentError=${encodeURIComponent(message)}`);
+    res.redirect(`/control?agentError=${encodeURIComponent(message)}`);
   }
 });
 
@@ -329,6 +358,110 @@ router.get('/enricher/logs', (_req: Request, res: Response) => {
       error: error instanceof Error ? error.message : String(error),
     });
     res.status(500).json({ error: 'Failed to read enricher logs' });
+  }
+});
+
+// ─── Telegram Notifications ──────────────────────────────
+
+/**
+ * POST /notifications/test — Send a test Telegram notification using a real job.
+ */
+router.post('/notifications/test', async (_req: Request, res: Response) => {
+  try {
+    if (!isTelegramConfigured()) {
+      res.redirect('/control?notificationError=' + encodeURIComponent(
+        'Telegram not configured. Add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to your .env file.'
+      ));
+      return;
+    }
+
+    const job = await getJobForTestNotification();
+    if (!job) {
+      res.redirect('/control?notificationError=' + encodeURIComponent(
+        'No enriched jobs in the database yet. Run the enricher first, then try again.'
+      ));
+      return;
+    }
+
+    const result = await sendTestNotification(job);
+    if (result.success) {
+      res.redirect('/control?notificationSent=1');
+    } else {
+      res.redirect('/control?notificationError=' + encodeURIComponent(
+        result.error || 'Failed to send test notification.'
+      ));
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Test notification failed', { error: message });
+    res.redirect('/control?notificationError=' + encodeURIComponent(message));
+  }
+});
+
+// ─── Control Panel ──────────────────────────────────────
+
+/**
+ * GET /control — Render the control panel page with agent panels and scraper settings.
+ */
+router.get('/control', async (req: Request, res: Response) => {
+  try {
+    const [scraperState, agentStatus, enricherStatus, enrichmentQueueSize, settings] = await Promise.all([
+      getScraperState(),
+      getAgentStatus(),
+      getEnricherStatus(),
+      getEnrichmentQueueSize(),
+      getOrCreateSettings(),
+    ]);
+
+    const cookies = loadCookies();
+    const linkedinSessionValid = cookies !== null && areCookiesValid(cookies);
+    const telegramConfigured = !!(config.telegram.botToken && config.telegram.chatId);
+
+    res.render('control', {
+      scraperState,
+      agentStatus,
+      enricherStatus,
+      enrichmentQueueSize,
+      linkedinSessionValid,
+      telegramConfigured,
+      scraperSettings: {
+        intervalMinutes: settings.intervalMinutes,
+        headless: settings.headless,
+      },
+      agentError: req.query.agentError || null,
+      saved: req.query.saved === '1',
+      notificationSent: req.query.notificationSent === '1',
+      notificationError: req.query.notificationError || null,
+    });
+  } catch (error) {
+    logger.error('Error rendering control panel', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+/**
+ * POST /control/scraper-settings — Save scrape interval and headless mode.
+ */
+router.post('/control/scraper-settings', async (req: Request, res: Response) => {
+  try {
+    const { SCRAPE_INTERVAL_MINUTES, HEADLESS_MODE } = req.body;
+
+    await updateSettings({
+      intervalMinutes: parseInt(SCRAPE_INTERVAL_MINUTES, 10) || 2,
+      headless: HEADLESS_MODE === 'true',
+    });
+
+    await reloadConfig();
+    logger.info('Scraper settings saved from control panel');
+
+    res.redirect('/control?saved=1');
+  } catch (error) {
+    logger.error('Failed to save scraper settings', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).send('Failed to save scraper settings');
   }
 });
 
