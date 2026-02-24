@@ -21,7 +21,7 @@ import { logger } from '../logger';
 
 export const router = Router();
 
-const VALID_STATUSES: JobStatus[] = ['new', 'applied', 'reviewed', 'rejected'];
+const VALID_STATUSES: JobStatus[] = ['new', 'accepted', 'applied', 'rejected'];
 
 function safeParseJsonArray(value: string): string[] {
   try {
@@ -65,6 +65,8 @@ router.get('/', async (req: Request, res: Response) => {
       actionItemsParsed: safeParseJsonArray(job.actionItems),
       redFlagsParsed: safeParseJsonArray(job.redFlags),
       contactPeopleParsed: safeParseJson(job.contactPeople, []),
+      scoreBreakdownParsed: safeParseJson(job.scoreBreakdown, {}),
+      dealbreakerDisplay: job.dealbreaker || '',
     }));
 
     res.render('jobs', {
@@ -84,13 +86,14 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /jobs — Jobs board (kanban or list view).
+ * GET /jobs — Jobs board (split-pane master/detail view).
  */
 router.get('/jobs', async (req: Request, res: Response) => {
   try {
-    const statusFilter = req.query.status as JobStatus | undefined;
-    const validFilter = statusFilter && VALID_STATUSES.includes(statusFilter) ? statusFilter : undefined;
-    const view = req.query.view === 'list' ? 'list' : 'kanban';
+    const statusParam = req.query.status as string | undefined;
+    // Default to 'new' when no filter is specified; 'all' shows everything
+    const isAll = statusParam === 'all';
+    const validFilter = isAll ? undefined : (statusParam && VALID_STATUSES.includes(statusParam as JobStatus) ? statusParam as JobStatus : 'new');
 
     const [jobs, stats] = await Promise.all([
       getJobs(validFilter),
@@ -104,13 +107,28 @@ router.get('/jobs', async (req: Request, res: Response) => {
       actionItemsParsed: safeParseJsonArray(job.actionItems),
       redFlagsParsed: safeParseJsonArray(job.redFlags),
       contactPeopleParsed: safeParseJson(job.contactPeople, []),
+      scoreBreakdownParsed: safeParseJson(job.scoreBreakdown, {}),
+      dealbreakerDisplay: job.dealbreaker || '',
     }));
+
+    // Sort: jobs with priority first (by score desc), then jobs without priority (by score desc)
+    // Jobs with no score sink to the bottom of their group
+    parsedJobs.sort((a, b) => {
+      const aHasPriority = a.priority && a.priority !== '' ? 1 : 0;
+      const bHasPriority = b.priority && b.priority !== '' ? 1 : 0;
+      if (aHasPriority !== bHasPriority) return bHasPriority - aHasPriority;
+      const aScore = a.matchScore || 0;
+      const bScore = b.matchScore || 0;
+      if (aScore === 0 && bScore === 0) return 0;
+      if (aScore === 0) return 1;
+      if (bScore === 0) return -1;
+      return bScore - aScore;
+    });
 
     res.render('kanban', {
       jobs: parsedJobs,
       stats,
-      currentFilter: validFilter || 'all',
-      currentView: view,
+      currentFilter: isAll ? 'all' : (validFilter || 'new'),
       statuses: VALID_STATUSES,
     });
   } catch (error) {
@@ -197,13 +215,9 @@ router.get('/job/:id', async (req: Request, res: Response) => {
     }
     res.json({
       ...job,
-      keyMatchesParsed: (() => {
-        try {
-          return JSON.parse(job.keyMatches) as string[];
-        } catch {
-          return [];
-        }
-      })(),
+      keyMatchesParsed: safeParseJsonArray(job.keyMatches),
+      scoreBreakdownParsed: safeParseJson(job.scoreBreakdown, {}),
+      dealbreakerDisplay: job.dealbreaker || '',
     });
   } catch (error) {
     logger.error('Error fetching job', {

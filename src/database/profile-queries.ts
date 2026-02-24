@@ -32,6 +32,7 @@ export interface ProfileUpdate {
   missionStatement?: string;
   urgencySignals?: string;
   summary?: string;
+  yearsOfExperience?: number;
   remoteOnly?: boolean;
   willingToRelocate?: boolean;
   openToContract?: boolean;
@@ -83,7 +84,7 @@ const CACHE_INVALIDATING_FIELDS: (keyof ProfileUpdate)[] = [
   'preferredTechStack', 'targetSeniority', 'excludeTitleKeywords',
   'includeTitlePatterns', 'jobSearchDescription',
   'keyInterests', 'dealbreakers', 'remoteOnly', 'minSalary',
-  'missionStatement', 'urgencySignals',
+  'missionStatement', 'urgencySignals', 'yearsOfExperience',
 ];
 
 /**
@@ -159,10 +160,37 @@ export async function getProfileForAI() {
 }
 
 /**
+ * Computes total years of experience from work experience entries.
+ * Sums the duration of each entry (non-overlapping is assumed).
+ */
+function computeYearsFromWorkExperience(
+  workExperience: Array<{ startDate: string; endDate: string | null; isCurrent: boolean }>,
+): number {
+  let totalMonths = 0;
+  const now = new Date();
+  for (const exp of workExperience) {
+    const start = new Date(exp.startDate);
+    if (isNaN(start.getTime())) continue;
+    const end = exp.isCurrent || !exp.endDate ? now : new Date(exp.endDate);
+    if (isNaN(end.getTime())) continue;
+    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    if (months > 0) totalMonths += months;
+  }
+  return Math.round(totalMonths / 12);
+}
+
+/**
  * Returns profile data specifically for the enrichment AI prompt.
  */
 export async function getProfileForEnrichmentAI() {
   const profile = await getOrCreateProfile();
+
+  // Use stored value, but fall back to computing from work experience if it's 0
+  let yearsOfExperience = profile.yearsOfExperience;
+  if (yearsOfExperience === 0 && profile.workExperience.length > 0) {
+    yearsOfExperience = computeYearsFromWorkExperience(profile.workExperience);
+  }
+
   return {
     profileSummaryCache: profile.profileSummaryCache || '',
     jobSearchDescription: profile.jobSearchDescription,
@@ -172,6 +200,11 @@ export async function getProfileForEnrichmentAI() {
     dealbreakers: parseJsonArray(profile.dealbreakers),
     preferredTechStack: parseJsonArray(profile.preferredTechStack),
     targetSeniority: parseJsonArray(profile.targetSeniority),
+    willingToRelocate: profile.willingToRelocate,
+    visaSponsorshipNeeded: profile.visaSponsorshipNeeded,
+    remoteOnly: profile.remoteOnly,
+    openToContract: profile.openToContract,
+    yearsOfExperience,
     workExperience: profile.workExperience.slice(0, 5).map((exp) => ({
       title: exp.title,
       employer: exp.employer,

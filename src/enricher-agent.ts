@@ -16,6 +16,12 @@ import {
 import { getProfileForEnrichmentAI } from './database/profile-queries';
 import { DetailScraper, SessionExpiredError } from './scraper/detail-scraper';
 import { analyzeEnrichedJob } from './ai/job-enricher';
+import {
+  checkDealbreakers,
+  calculateDeterministicScores,
+  computeFinalScore,
+  assignPriority,
+} from './ai/scoring-engine';
 import { randomDelay } from './scraper/anti-detection';
 import { isTelegramConfigured, sendUrgentJobNotification } from './notifications/telegram';
 
@@ -185,16 +191,85 @@ async function enrichmentLoop(): Promise<void> {
         jobFunction: jobDetail.jobFunction,
       });
 
-      // Step 4: Save enrichment data
+      // Step 4: Scoring pipeline
+      let computedScore = 0;
+      let computedPriority = 'normal';
+      let computedPriorityReason = '';
+      let scoreBreakdown: object = {};
+      let triggeredDealbreaker = '';
+
+      if (analysis.aiFailed) {
+        // AI failed — save scraped data with defaults, don't penalize
+        computedScore = 0;
+        computedPriority = 'normal';
+        computedPriorityReason = 'AI analysis failed — scoring unavailable';
+      } else {
+        // Check dealbreakers first
+        const dealbreaker = checkDealbreakers(analysis.dealbreakers, profileContext.yearsOfExperience);
+
+        if (dealbreaker) {
+          // Dealbreaker triggered — score 0, priority low
+          computedScore = 0;
+          computedPriority = 'low';
+          triggeredDealbreaker = dealbreaker;
+
+          const reasonMap: Record<string, string> = {
+            seniorityTooHigh: 'Dealbreaker: role requires senior-level experience',
+            clearanceRequired: 'Dealbreaker: requires security clearance',
+            wrongTechDomain: 'Dealbreaker: primary tech stack has no overlap with candidate skills',
+            experienceRequires6Plus: `Dealbreaker: requires ${analysis.dealbreakers.experienceMinYears}+ years of experience`,
+            experienceGapTooLarge: `Dealbreaker: requires ${analysis.dealbreakers.experienceMinYears}+ years, candidate has ${profileContext.yearsOfExperience}`,
+          };
+          computedPriorityReason = reasonMap[dealbreaker] || `Dealbreaker: ${dealbreaker}`;
+
+          // Still build a partial breakdown for transparency
+          scoreBreakdown = {
+            dealbreaker,
+            scores: analysis.scores,
+            extracted: analysis.extracted,
+            baseScore: 0,
+            finalScore: 0,
+            minYearsExtracted: analysis.dealbreakers.experienceMinYears,
+          };
+        } else {
+          // No dealbreaker — run full scoring
+          const deterministicScores = calculateDeterministicScores(
+            {
+              seniorityLevel: jobDetail.seniorityLevel,
+              applicantCount: jobDetail.applicantCount,
+              postedBy: jobDetail.postedBy,
+              postedByProfile: jobDetail.postedByProfile,
+            },
+            {
+              yearsOfExperience: profileContext.yearsOfExperience,
+              willingToRelocate: profileContext.willingToRelocate,
+              remoteOnly: profileContext.remoteOnly,
+            },
+            analysis.extracted,
+            analysis.dealbreakers.experienceMinYears,
+          );
+
+          const result = computeFinalScore(analysis.scores, deterministicScores, analysis.extracted);
+
+          computedScore = result.finalScore;
+          computedPriority = assignPriority(result.finalScore, analysis.extracted.urgencySignalMatched);
+          computedPriorityReason = analysis.analysis.matchReason;
+
+          result.breakdown.minYearsExtracted = analysis.dealbreakers.experienceMinYears;
+          scoreBreakdown = result.breakdown;
+        }
+      }
+
+      // Step 5: Save enrichment data
       await updateJobEnrichment(job.id, {
         description: jobDetail.description,
-        priority: analysis.priority,
-        priorityReason: analysis.priorityReason,
-        matchScore: analysis.matchScore,
-        matchReason: analysis.matchReason,
-        keyMatches: analysis.keyMatches,
-        actionItems: analysis.actionItems,
-        redFlags: analysis.redFlags,
+        priority: computedPriority,
+        priorityReason: computedPriorityReason,
+        matchScore: computedScore,
+        matchReason: analysis.analysis.matchReason,
+        keyMatches: analysis.analysis.keyMatches,
+        actionItems: analysis.analysis.actionItems,
+        redFlags: analysis.analysis.redFlags,
         companyInfo: jobDetail.companyInfo,
         applicantCount: jobDetail.applicantCount,
         seniorityLevel: jobDetail.seniorityLevel,
@@ -204,12 +279,15 @@ async function enrichmentLoop(): Promise<void> {
         postedByTitle: jobDetail.postedByTitle,
         postedByProfile: jobDetail.postedByProfile,
         contactPeople: jobDetail.contactPeople,
+        scoreBreakdown,
+        dealbreaker: triggeredDealbreaker,
+        ...(triggeredDealbreaker ? { status: 'rejected' } : {}),
       });
 
       await markEnricherSuccess();
 
       // Send Telegram notification for urgent jobs
-      if (analysis.priority === 'urgent' && !analysis.aiFailed && isTelegramConfigured()) {
+      if (computedPriority === 'urgent' && !analysis.aiFailed && isTelegramConfigured()) {
         await sendUrgentJobNotification(
           {
             title: job.title,
@@ -219,7 +297,11 @@ async function enrichmentLoop(): Promise<void> {
             postedBy: jobDetail.postedBy,
             postedByTitle: jobDetail.postedByTitle,
           },
-          analysis,
+          {
+            priorityReason: computedPriorityReason,
+            matchReason: analysis.analysis.matchReason,
+            actionItems: analysis.analysis.actionItems,
+          },
         );
       }
 
@@ -229,10 +311,11 @@ async function enrichmentLoop(): Promise<void> {
         id: job.id,
         title: job.title,
         company: job.company,
-        priority: analysis.priority,
-        matchScore: analysis.matchScore,
+        priority: computedPriority,
+        matchScore: computedScore,
+        dealbreaker: triggeredDealbreaker || 'none',
         aiFailed: analysis.aiFailed ?? false,
-        notified: analysis.priority === 'urgent' && !analysis.aiFailed && isTelegramConfigured(),
+        notified: computedPriority === 'urgent' && !analysis.aiFailed && isTelegramConfigured(),
       });
 
       // Anti-detection delay between jobs

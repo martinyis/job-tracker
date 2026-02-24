@@ -118,6 +118,14 @@
             </div>
 
             <div class="cy-form-group">
+              <label for="years_of_experience">Years of Experience</label>
+              <input type="number" id="years_of_experience" name="years_of_experience"
+                value="<%= settings.profile.additional_info.years_of_experience != null ? settings.profile.additional_info.years_of_experience : '' %>"
+                placeholder="4" min="0" max="50" step="1">
+              <span class="cy-hint">Total years of professional software development experience (used for job scoring)</span>
+            </div>
+
+            <div class="cy-form-group">
               <label for="target_seniority">Target Seniority Level <span class="cy-hint">(comma-separated)</span></label>
               <input type="text" id="target_seniority" name="target_seniority"
                 value="<%= settings.profile.preferences.target_seniority.join(', ') %>"

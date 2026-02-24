@@ -1,7 +1,7 @@
 import { prisma } from './client';
 import { logger } from '../logger';
 
-export type JobStatus = 'new' | 'applied' | 'reviewed' | 'rejected';
+export type JobStatus = 'new' | 'accepted' | 'applied' | 'rejected';
 
 export async function jobExistsBatch(linkedinIds: string[]): Promise<Set<string>> {
   if (linkedinIds.length === 0) return new Set();

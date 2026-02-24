@@ -155,6 +155,7 @@ setupRouter.get('/setup', async (req: Request, res: Response) => {
         visa_sponsorship_needed: profile.visaSponsorshipNeeded,
         min_salary: profile.minSalary,
         key_interests: parseJsonArray(profile.keyInterests),
+        years_of_experience: profile.yearsOfExperience,
       },
       dealbreakers: parseJsonArray(profile.dealbreakers),
       job_search_description: profile.jobSearchDescription,
@@ -250,11 +251,13 @@ setupRouter.post('/setup/profile', async (req: Request, res: Response) => {
       min_salary,
       key_interests,
       dealbreakers,
+      years_of_experience,
     } = req.body;
 
     await updateProfile({
       remoteOnly: remote_only === 'on',
       willingToRelocate: willing_to_relocate === 'on',
+      yearsOfExperience: parseInt(years_of_experience, 10) || 0,
       preferredCompanySize: toJsonArray(splitComma(preferred_company_size)),
       avoidIndustries: toJsonArray(splitComma(avoid_industries)),
       preferredTechStack: toJsonArray(splitComma(preferred_tech_stack)),

@@ -9,29 +9,15 @@
     <%- include('partials/sidebar', { activePage: 'jobs' }) %>
 
     <main class="cy-main">
-      <div class="cy-page">
+      <div class="cy-page cy-page--jobs">
 
-        <!-- Breadcrumb (CyFocus style) -->
-        <div class="cy-breadcrumb">
-          <a href="/">Home</a>
-          <span class="cy-breadcrumb-sep">></span>
-          <span style="color: var(--text-secondary);">Jobs</span>
-        </div>
-
-        <!-- Page Header with view toggle and export -->
-        <div class="cy-page-header">
-          <h1>Jobs</h1>
-          <div class="cy-page-header-actions">
-            <!-- View Toggle (CyFocus style) -->
-            <div class="cy-view-toggle">
-              <a href="/jobs?view=list<%= currentFilter !== 'all' ? '&status=' + currentFilter : '' %>" class="cy-view-btn <%= currentView === 'list' ? 'active' : '' %>" title="List view">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-              </a>
-              <a href="/jobs?view=kanban<%= currentFilter !== 'all' ? '&status=' + currentFilter : '' %>" class="cy-view-btn <%= currentView === 'kanban' ? 'active' : '' %>" title="Board view">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="18" rx="1"/><rect x="9" y="3" width="6" height="12" rx="1"/><rect x="15" y="3" width="6" height="15" rx="1"/></svg>
-              </a>
-            </div>
-            <!-- Export button -->
+        <!-- Page Header (compact, no breadcrumb to save vertical space) -->
+        <div class="jb-header">
+          <div class="jb-header-left">
+            <h1>Jobs</h1>
+            <span class="jb-header-count"><%= jobs.length %> total</span>
+          </div>
+          <div class="jb-header-right">
             <button class="cy-export-btn" onclick="window.print()">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export
@@ -41,224 +27,320 @@
 
         <!-- Filter Chips -->
         <div class="cy-filters">
-          <a href="/jobs?view=<%= currentView %>" class="cy-chip <%= currentFilter === 'all' ? 'active' : '' %>">All (<%= stats.totalJobs %>)</a>
-          <% statuses.forEach(function(status) { %>
-            <a href="/jobs?view=<%= currentView %>&status=<%= status %>" class="cy-chip <%= currentFilter === status ? 'active' : '' %>">
+          <a href="/jobs" class="cy-chip <%= currentFilter === 'new' ? 'active' : '' %>">New (<%= stats.statusCounts.new || 0 %>)</a>
+          <a href="/jobs?status=all" class="cy-chip <%= currentFilter === 'all' ? 'active' : '' %>">All (<%= stats.totalJobs %>)</a>
+          <% statuses.filter(function(s) { return s !== 'new'; }).forEach(function(status) { %>
+            <a href="/jobs?status=<%= status %>" class="cy-chip <%= currentFilter === status ? 'active' : '' %>">
               <%= status.charAt(0).toUpperCase() + status.slice(1) %> (<%= stats.statusCounts[status] || 0 %>)
             </a>
           <% }); %>
         </div>
 
-        <% if (currentView === 'kanban') { %>
-          <!-- ============================================================
-               KANBAN VIEW
-               ============================================================ -->
-          <% if (jobs.length === 0) { %>
-            <div class="cy-empty">
-              <p>No jobs found. <% if (currentFilter !== 'all') { %>Try a different filter or <a href="/jobs?view=kanban">view all</a>.<% } else { %>The scraper hasn't found any matching jobs yet.<% } %></p>
-            </div>
-          <% } else { %>
-            <%
-              var columns = {
-                'new': jobs.filter(function(j) { return j.status === 'new'; }),
-                'reviewed': jobs.filter(function(j) { return j.status === 'reviewed'; }),
-                'applied': jobs.filter(function(j) { return j.status === 'applied'; }),
-                'rejected': jobs.filter(function(j) { return j.status === 'rejected'; })
-              };
-            %>
-            <div class="cy-kanban">
-              <% ['new', 'reviewed', 'applied', 'rejected'].forEach(function(colStatus) { %>
-                <div class="cy-kanban-col">
-                  <div class="cy-kanban-col-header">
-                    <span class="cy-kanban-col-title">
-                      <span class="cy-kanban-dot <%= colStatus %>"></span>
-                      <%= colStatus.charAt(0).toUpperCase() + colStatus.slice(1) %>
-                    </span>
-                    <span class="cy-kanban-count"><%= columns[colStatus].length %></span>
-                  </div>
-                  <div class="cy-kanban-body">
-                    <% if (columns[colStatus].length === 0) { %>
-                      <div style="text-align: center; padding: 24px 8px; color: var(--text-muted); font-size: 12px;">No jobs</div>
-                    <% } %>
-                    <% columns[colStatus].forEach(function(job) { %>
-                      <div class="cy-k-card<%= job.priority === 'urgent' ? ' priority-urgent' : job.priority === 'high' ? ' priority-high' : '' %>" onclick="openJobDetail('<%= job.id %>')">
-                        <% if (job.priority) { %>
-                          <div><span class="cy-priority <%= job.priority %>"><%= job.priority.toUpperCase() %></span></div>
-                        <% } else if (job.enrichmentStatus === 'pending') { %>
-                          <div class="cy-enrichment-pending">Analyzing...</div>
-                        <% } %>
-                        <div class="cy-k-card-title">
-                          <a href="<%= job.link %>" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()"><%= job.title %></a>
-                        </div>
-                        <div class="cy-k-card-company"><%= job.company %><% if (job.location) { %> &middot; <%= job.location %><% } %></div>
-                        <div class="cy-k-card-footer">
-                          <span class="cy-k-card-date">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                            <%= job.postedDate %>
-                          </span>
-                          <span class="cy-k-card-score <%= job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : job.matchScore >= 50 ? 'decent' : job.matchScore > 0 ? 'low' : 'none' %>">
-                            <%= job.matchScore %>
-                          </span>
-                        </div>
-                      </div>
-                    <% }); %>
-                  </div>
-                </div>
-              <% }); %>
-            </div>
-          <% } %>
+        <!-- ============================================================
+             SPLIT-PANE MASTER/DETAIL LAYOUT
+             ============================================================ -->
+        <div class="jb-split">
 
-        <% } else { %>
-          <!-- ============================================================
-               LIST VIEW
-               ============================================================ -->
-          <% if (jobs.length === 0) { %>
-            <div class="cy-empty">
-              <p>No jobs found. <% if (currentFilter !== 'all') { %>Try a different filter or <a href="/jobs?view=list">view all</a>.<% } else { %>The scraper hasn't found any matching jobs yet.<% } %></p>
-            </div>
-          <% } else { %>
-            <div class="cy-panel">
-              <div class="cy-panel-flush">
-                <div class="cy-table-wrap">
-                  <table class="cy-table">
-                    <thead>
-                      <tr>
-                        <th>Score</th>
-                        <th>Title</th>
-                        <th>Company</th>
-                        <th>Location</th>
-                        <th>Date</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <% jobs.forEach(function(job) { %>
-                        <tr>
-                          <td>
-                            <span class="cy-score <%= job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : job.matchScore >= 50 ? 'decent' : job.matchScore > 0 ? 'low' : 'none' %>">
-                              <%= job.matchScore %>
-                            </span>
-                          </td>
-                          <td>
-                            <% if (job.priority) { %>
-                              <span class="cy-priority <%= job.priority %>"><%= job.priority.toUpperCase() %></span>
-                            <% } else if (job.enrichmentStatus === 'pending') { %>
-                              <span class="cy-enrichment-pending">Analyzing...</span>
-                            <% } %>
-                            <a href="<%= job.link %>" target="_blank" rel="noopener noreferrer" class="job-link"><%= job.title %></a>
-                          </td>
-                          <td><%= job.company %></td>
-                          <td><%= job.location %></td>
-                          <td class="nowrap"><%= job.postedDate %></td>
-                          <td><span class="cy-status <%= job.status %>"><%= job.status %></span></td>
-                          <td>
-                            <div style="display: flex; gap: 4px; align-items: center;">
-                              <button class="cy-btn cy-btn-sm cy-btn-outline" onclick="openJobDetail('<%= job.id %>')">Details</button>
-                              <a href="<%= job.applyLink %>" target="_blank" rel="noopener noreferrer" class="cy-btn cy-btn-sm cy-btn-accent">Apply</a>
-                            </div>
-                          </td>
-                        </tr>
-                      <% }); %>
-                    </tbody>
-                  </table>
-                </div>
+          <!-- LEFT: Job List Panel -->
+          <div class="jb-list-panel" id="jb-list-panel">
+            <% if (jobs.length === 0) { %>
+              <div class="cy-empty" style="padding: 60px 20px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5" style="margin-bottom: 16px; opacity: 0.4;">
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+                </svg>
+                <p>No jobs found.<br>
+                <% if (currentFilter !== 'all') { %>
+                  Try a different filter or <a href="/jobs">view all</a>.
+                <% } else { %>
+                  The scraper hasn't found any matching jobs yet.
+                <% } %>
+                </p>
               </div>
-            </div>
-          <% } %>
-        <% } %>
+            <% } else { %>
+              <div class="jb-list" id="jb-list">
+                <% jobs.forEach(function(job, index) { %>
+                  <div class="jb-card<%= job.priority === 'urgent' ? ' jb-card--urgent' : job.priority === 'high' ? ' jb-card--high' : '' %>"
+                       data-job-id="<%= job.id %>"
+                       onclick="selectJob('<%= job.id %>')"
+                       tabindex="0"
+                       role="button"
+                       aria-label="View details for <%= job.title %> at <%= job.company %>">
 
+                    <div class="jb-card-top">
+                      <div class="jb-card-badges">
+                        <% if (job.priority && job.priority !== 'normal' && job.priority !== 'low') { %>
+                          <span class="cy-priority <%= job.priority %>"><%= job.priority.toUpperCase() %></span>
+                        <% } %>
+                        <% if (job.enrichmentStatus === 'pending') { %>
+                          <span class="cy-enrichment-pending">Analyzing...</span>
+                        <% } %>
+                        <span class="cy-status <%= job.status %>"><%= job.status %></span>
+                      </div>
+                      <span class="jb-card-score <%= job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : job.matchScore >= 50 ? 'decent' : job.matchScore > 0 ? 'low' : 'none' %>">
+                        <%= job.matchScore %>
+                      </span>
+                    </div>
+
+                    <div class="jb-card-title"><%= job.title %></div>
+                    <div class="jb-card-company"><%= job.company %><% if (job.location) { %> &middot; <%= job.location %><% } %></div>
+
+                    <div class="jb-card-meta">
+                      <span class="jb-card-date">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <%= job.postedDate || 'Unknown' %>
+                      </span>
+                      <% if (job.employmentType) { %>
+                        <span class="jb-card-type"><%= job.employmentType %></span>
+                      <% } %>
+                    </div>
+                  </div>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+
+          <!-- RIGHT: Detail Panel (persistent, not a modal) -->
+          <div class="jb-detail-panel" id="jb-detail-panel">
+
+            <!-- Empty state (shown when no job is selected) -->
+            <div class="jb-detail-empty" id="jb-detail-empty">
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1" style="opacity: 0.3;">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+              </svg>
+              <div class="jb-detail-empty-title">Select a job to view details</div>
+              <div class="jb-detail-empty-sub">Click any job from the list to see its full information, enrichment data, and controls.</div>
+            </div>
+
+            <!-- Detail content (hidden until a job is selected) -->
+            <div class="jb-detail-content" id="jb-detail-content" style="display: none;">
+
+              <!-- Detail header -->
+              <div class="jb-detail-header" id="jb-detail-header">
+                <div class="jb-detail-title-row">
+                  <h2 class="jb-detail-title" id="jb-detail-title"></h2>
+                  <!-- Mobile close button -->
+                  <button class="jb-detail-close-mobile" id="jb-detail-close-mobile" onclick="deselectJob()" aria-label="Close detail panel">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div class="jb-detail-subtitle" id="jb-detail-subtitle"></div>
+              </div>
+
+              <!-- Action bar -->
+              <div class="jb-detail-actions" id="jb-detail-actions"></div>
+
+              <!-- Scrollable body -->
+              <div class="jb-detail-body" id="jb-detail-body"></div>
+
+              <!-- Note form (pinned at bottom) -->
+              <div class="jb-detail-notes" id="jb-detail-notes"></div>
+            </div>
+          </div>
+
+        </div><!-- /jb-split -->
       </div>
     </main>
   </div>
 
-  <!-- ============================================================
-       JOB DETAIL SLIDE-OVER PANEL (CyFocus style)
-       ============================================================ -->
-  <div class="cy-detail-overlay" id="detail-overlay" onclick="closeJobDetail()"></div>
-  <div class="cy-detail-panel" id="detail-panel" style="display: none;">
-    <div class="cy-detail-header">
-      <span class="cy-detail-title" id="detail-title">Loading...</span>
-      <button class="cy-detail-close" onclick="closeJobDetail()" aria-label="Close">&times;</button>
-    </div>
-    <div class="cy-detail-actions" id="detail-actions"></div>
-    <div class="cy-detail-body" id="detail-body">
-      <div style="text-align: center; padding: 40px; color: var(--text-muted);">Loading job details...</div>
-    </div>
-    <div class="cy-detail-notes" id="detail-note-form"></div>
-  </div>
-
   <script>
     var allJobs = <%- JSON.stringify(jobs.map(function(job) { return job; })) %>;
+    var selectedJobId = null;
 
     function findJob(id) {
       return allJobs.find(function(j) { return j.id === id; });
     }
 
-    function openJobDetail(id) {
+    function escapeHtml(str) {
+      if (!str) return '';
+      var div = document.createElement('div');
+      div.appendChild(document.createTextNode(String(str)));
+      return div.innerHTML;
+    }
+
+    /**
+     * Select a job from the list and render its details in the right panel.
+     */
+    function selectJob(id) {
       var job = findJob(id);
       if (!job) return;
 
-      var overlay = document.getElementById('detail-overlay');
-      var panel = document.getElementById('detail-panel');
-      overlay.classList.add('active');
-      panel.style.display = 'flex';
+      selectedJobId = id;
 
-      // Title
-      document.getElementById('detail-title').textContent = job.title;
+      // Update active state in list
+      var cards = document.querySelectorAll('.jb-card');
+      cards.forEach(function(card) {
+        card.classList.toggle('jb-card--active', card.getAttribute('data-job-id') === id);
+      });
 
-      // Action buttons (CyFocus: primary filled + outline secondary)
-      var actionsHtml = '';
-      actionsHtml += '<a href="' + job.applyLink + '" target="_blank" rel="noopener noreferrer" class="cy-btn cy-btn-primary">Apply Now</a>';
-      actionsHtml += '<a href="' + job.link + '" target="_blank" rel="noopener noreferrer" class="cy-btn cy-btn-outline">View on LinkedIn</a>';
+      // Show detail content, hide empty state
+      document.getElementById('jb-detail-empty').style.display = 'none';
+      document.getElementById('jb-detail-content').style.display = 'flex';
 
-      var statusForm = '<form method="POST" action="/update-status" class="inline-form">';
-      statusForm += '<input type="hidden" name="id" value="' + job.id + '">';
-      if (job.status !== 'reviewed') statusForm += '<button type="submit" name="status" value="reviewed" class="cy-btn cy-btn-warning cy-btn-sm">Reviewed</button>';
-      if (job.status !== 'applied') statusForm += '<button type="submit" name="status" value="applied" class="cy-btn cy-btn-success cy-btn-sm">Applied</button>';
-      if (job.status !== 'rejected') statusForm += '<button type="submit" name="status" value="rejected" class="cy-btn cy-btn-danger cy-btn-sm">Reject</button>';
-      statusForm += '</form>';
-      actionsHtml += statusForm;
-      document.getElementById('detail-actions').innerHTML = actionsHtml;
+      // On mobile, add class to show detail panel full screen
+      document.getElementById('jb-detail-panel').classList.add('jb-detail-panel--active');
 
-      // Body with CyFocus-style sections
+      // Render title
+      document.getElementById('jb-detail-title').textContent = job.title;
+
+      // Subtitle (company + location + date)
+      var subtitle = escapeHtml(job.company);
+      if (job.location) subtitle += ' &middot; ' + escapeHtml(job.location);
+      if (job.postedDate) subtitle += ' &middot; ' + escapeHtml(job.postedDate);
+      document.getElementById('jb-detail-subtitle').innerHTML = subtitle;
+
+      // ---- Action buttons ----
+      var actionsHtml = '<div class="jb-action-row">';
+      // Primary links (left side)
+      actionsHtml += '<div class="jb-action-links">';
+      if (job.applyLink) {
+        actionsHtml += '<a href="' + escapeHtml(job.applyLink) + '" target="_blank" rel="noopener noreferrer" class="cy-btn cy-btn-primary">Apply Now</a>';
+        actionsHtml += '<a href="' + escapeHtml(job.link) + '" target="_blank" rel="noopener noreferrer" class="cy-btn cy-btn-outline">View on LinkedIn</a>';
+      } else {
+        actionsHtml += '<a href="' + escapeHtml(job.link) + '" target="_blank" rel="noopener noreferrer" class="cy-btn cy-btn-primary">Apply on LinkedIn</a>';
+      }
+      actionsHtml += '</div>';
+      // Decision buttons (right side)
+      actionsHtml += '<div class="jb-decision-actions">';
+      if (job.status === 'new') {
+        // Show accept + reject for new jobs
+        actionsHtml += '<form method="POST" action="/update-status" class="jb-status-form inline-form"><input type="hidden" name="id" value="' + job.id + '"><button type="submit" name="status" value="accepted" class="jb-decision-btn jb-decision-btn--accept" title="Accept"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></form>';
+        actionsHtml += '<form method="POST" action="/update-status" class="jb-status-form inline-form"><input type="hidden" name="id" value="' + job.id + '"><button type="submit" name="status" value="rejected" class="jb-decision-btn jb-decision-btn--reject" title="Reject"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></form>';
+      }
+      // Show "Mark Applied" as a subtle sub-action for accepted jobs
+      if (job.status === 'accepted') {
+        actionsHtml += '<form method="POST" action="/update-status" class="jb-status-form inline-form"><input type="hidden" name="id" value="' + job.id + '"><button type="submit" name="status" value="applied" class="jb-action-btn jb-action-btn--applied"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Mark Applied</button></form>';
+      }
+      actionsHtml += '</div>';
+      actionsHtml += '</div>';
+      // "Already Applied" below the action row for new jobs
+      if (job.status === 'new') {
+        actionsHtml += '<div class="jb-already-applied-row"><form method="POST" action="/update-status" class="jb-status-form inline-form"><input type="hidden" name="id" value="' + job.id + '"><button type="submit" name="status" value="applied" class="jb-action-btn jb-action-btn--applied" title="Already Applied"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Already Applied</button></form></div>';
+      }
+      document.getElementById('jb-detail-actions').innerHTML = actionsHtml;
+
+      // ---- Body ----
       var bodyHtml = '';
+      var scoreClass = job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : job.matchScore >= 50 ? 'decent' : job.matchScore > 0 ? 'low' : 'none';
 
-      // SUMMARY section -- uppercase labels, right-aligned values
+      // ---- Dealbreaker banner ----
+      if (job.enrichmentStatus === 'enriched' && job.dealbreakerDisplay) {
+        var dealbreakLabels = {
+          seniorityTooHigh: 'Seniority too high',
+          clearanceRequired: 'Security clearance required',
+          wrongTechDomain: 'Wrong tech domain',
+          experienceRequires6Plus: 'Requires 6+ years experience'
+        };
+        bodyHtml += '<div class="jb-dealbreaker-banner">';
+        bodyHtml += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+        bodyHtml += '<div><strong>Dealbreaker</strong><br>' + escapeHtml(dealbreakLabels[job.dealbreakerDisplay] || job.dealbreakerDisplay) + '</div>';
+        bodyHtml += '</div>';
+      }
+
+      // ---- Priority callout + Red flags (TOP — the decision-making zone) ----
+      if (job.enrichmentStatus === 'enriched' && !job.dealbreakerDisplay && (job.priorityReason || (job.redFlagsParsed && job.redFlagsParsed.length > 0))) {
+        bodyHtml += '<div class="jb-verdict jb-verdict--' + (job.priority || 'normal') + '">';
+
+        // Top bar: score + priority tag
+        bodyHtml += '<div class="jb-verdict-topbar">';
+        bodyHtml += '<div class="jb-verdict-score"><span class="jb-verdict-score-num ' + scoreClass + '">' + job.matchScore + '</span><span class="jb-verdict-score-label">Match</span></div>';
+        if (job.priority) bodyHtml += '<span class="cy-priority ' + job.priority + '">' + job.priority.toUpperCase() + '</span>';
+        bodyHtml += '</div>';
+
+        // Priority reason
+        if (job.priorityReason) {
+          bodyHtml += '<p class="jb-verdict-reason">' + escapeHtml(job.priorityReason) + '</p>';
+        }
+
+        // Red flags inline
+        if (job.redFlagsParsed && job.redFlagsParsed.length > 0) {
+          bodyHtml += '<div class="jb-verdict-flags">';
+          bodyHtml += '<div class="jb-verdict-flags-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>Heads Up</div>';
+          job.redFlagsParsed.forEach(function(flag) {
+            bodyHtml += '<div class="jb-verdict-flag">' + escapeHtml(flag) + '</div>';
+          });
+          bodyHtml += '</div>';
+        }
+
+        bodyHtml += '</div>';
+      }
+
+      // ---- Score Breakdown (new 16-dimension grid) ----
+      var bd = job.scoreBreakdownParsed || {};
+      var hasBreakdown = bd.techStack !== undefined && !job.dealbreakerDisplay;
+      if (job.enrichmentStatus === 'enriched' && hasBreakdown) {
+        bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Score Breakdown</div>';
+        bodyHtml += '<div class="jb-score-grid">';
+
+        var categories = [
+          { label: 'Core Fit', dims: [
+            { key: 'techStack', name: 'Tech Stack', w: '10%' },
+            { key: 'roleType', name: 'Building vs Maintaining', w: '9%' },
+            { key: 'aiRelevance', name: 'AI/LLM Relevance', w: '12%' },
+            { key: 'fullStackBreadth', name: 'Full Stack Breadth', w: '5%' },
+            { key: 'productOwnership', name: 'Product Ownership', w: '6%' },
+          ]},
+          { label: 'Opportunity', dims: [
+            { key: 'companyStage', name: 'Company Stage', w: '12%' },
+            { key: 'growthPotential', name: 'Growth Potential', w: '6%' },
+          ]},
+          { label: 'Competitive', dims: [
+            { key: 'experienceMatch', name: 'Experience Match', w: '8%' },
+            { key: 'seniorityAlignment', name: 'Seniority Fit', w: '5%' },
+            { key: 'applicantCompetition', name: 'Competition', w: '4%' },
+            { key: 'descriptionQuality', name: 'Description Quality', w: '3%' },
+            { key: 'postingFreshness', name: 'Freshness', w: '2%' },
+          ]},
+          { label: 'Access', dims: [
+            { key: 'remotePosition', name: 'Remote', w: '12%' },
+            { key: 'directContact', name: 'Direct Contact', w: '3%' },
+            { key: 'posterRole', name: 'Poster Role', w: '2%' },
+            { key: 'applicationMethod', name: 'Apply Method', w: '1%' },
+          ]},
+        ];
+
+        categories.forEach(function(cat) {
+          bodyHtml += '<div class="jb-score-cat-label">' + cat.label + '</div>';
+          cat.dims.forEach(function(d) {
+            var val = bd[d.key];
+            if (val === undefined) val = '-';
+            var pct = typeof val === 'number' ? (val / 10 * 100) : 0;
+            var barClass = val >= 8 ? 'high' : val >= 5 ? 'mid' : val >= 0 ? 'low' : '';
+            bodyHtml += '<div class="jb-score-row">';
+            bodyHtml += '<span class="jb-score-dim-name">' + d.name + '</span>';
+            bodyHtml += '<span class="jb-score-dim-weight">' + d.w + '</span>';
+            bodyHtml += '<div class="jb-score-bar-track"><div class="jb-score-bar-fill ' + barClass + '" style="width:' + pct + '%"></div></div>';
+            bodyHtml += '<span class="jb-score-dim-val">' + val + '</span>';
+            bodyHtml += '</div>';
+          });
+        });
+
+        // Bonuses/Penalties
+        if (bd.bonuses && bd.bonuses.length > 0) {
+          bodyHtml += '<div class="jb-score-modifiers"><span class="jb-mod-label jb-mod-bonus">Bonuses:</span> ' + bd.bonuses.map(function(b) { return '<span class="jb-mod-tag jb-mod-tag--bonus">' + escapeHtml(b) + '</span>'; }).join(' ') + '</div>';
+        }
+        if (bd.penalties && bd.penalties.length > 0) {
+          bodyHtml += '<div class="jb-score-modifiers"><span class="jb-mod-label jb-mod-penalty">Penalties:</span> ' + bd.penalties.map(function(p) { return '<span class="jb-mod-tag jb-mod-tag--penalty">' + escapeHtml(p) + '</span>'; }).join(' ') + '</div>';
+        }
+
+        bodyHtml += '</div></div>';
+      }
+
+      // ---- Summary ----
       bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Summary</div>';
       bodyHtml += '<div class="cy-kv-grid">';
       bodyHtml += '<span class="cy-kv-label">Status</span><span class="cy-kv-value"><span class="cy-status ' + job.status + '">' + job.status + '</span></span>';
       bodyHtml += '<span class="cy-kv-label">Company</span><span class="cy-kv-value">' + escapeHtml(job.company) + '</span>';
       bodyHtml += '<span class="cy-kv-label">Location</span><span class="cy-kv-value">' + escapeHtml(job.location || '--') + '</span>';
       bodyHtml += '<span class="cy-kv-label">Posted</span><span class="cy-kv-value">' + escapeHtml(job.postedDate || '--') + '</span>';
-      bodyHtml += '<span class="cy-kv-label">Match Score</span><span class="cy-kv-value"><span class="cy-score ' + (job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : job.matchScore >= 50 ? 'decent' : job.matchScore > 0 ? 'low' : 'none') + '">' + job.matchScore + '</span></span>';
-      if (job.priority) bodyHtml += '<span class="cy-kv-label">Priority</span><span class="cy-kv-value"><span class="cy-priority ' + job.priority + '">' + job.priority.toUpperCase() + '</span></span>';
       bodyHtml += '</div></div>';
 
-      // Orange gradient divider
-      bodyHtml += '<hr class="cy-divider">';
-
-      // Enrichment data
+      // ---- Enrichment extras ----
       if (job.enrichmentStatus === 'enriched') {
-        if (job.priorityReason) {
-          bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Priority Reason</div>';
-          bodyHtml += '<p>' + escapeHtml(job.priorityReason) + '</p></div>';
-        }
-
         if (job.actionItemsParsed && job.actionItemsParsed.length > 0) {
           bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Action Items</div>';
           bodyHtml += '<ul class="cy-action-list">';
           job.actionItemsParsed.forEach(function(item) {
             bodyHtml += '<li>' + escapeHtml(item) + '</li>';
-          });
-          bodyHtml += '</ul></div>';
-        }
-
-        if (job.redFlagsParsed && job.redFlagsParsed.length > 0) {
-          bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Red Flags</div>';
-          bodyHtml += '<ul class="cy-flag-list">';
-          job.redFlagsParsed.forEach(function(flag) {
-            bodyHtml += '<li>' + escapeHtml(flag) + '</li>';
           });
           bodyHtml += '</ul></div>';
         }
@@ -284,8 +366,6 @@
           }
           bodyHtml += '</div>';
         }
-
-        bodyHtml += '<hr class="cy-divider">';
       }
 
       // Match reason
@@ -294,7 +374,7 @@
         bodyHtml += '<p>' + escapeHtml(job.matchReason) + '</p></div>';
       }
 
-      // Key matches as tags (like CyFocus evidence section)
+      // Key matches
       if (job.keyMatchesParsed && job.keyMatchesParsed.length > 0) {
         bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Key Matches</div>';
         bodyHtml += '<div class="cy-tags">';
@@ -302,12 +382,6 @@
           bodyHtml += '<span class="cy-tag">' + escapeHtml(match) + '</span>';
         });
         bodyHtml += '</div></div>';
-      }
-
-      // Company info
-      if (job.companyInfo) {
-        bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">About the Company</div>';
-        bodyHtml += '<p>' + escapeHtml(job.companyInfo) + '</p></div>';
       }
 
       // Job detail chips
@@ -321,43 +395,64 @@
         bodyHtml += '</div></div>';
       }
 
-      // Full description
-      if (job.description) {
-        bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Full Description</div>';
-        bodyHtml += '<div class="cy-desc-full">' + escapeHtml(job.description) + '</div></div>';
-      }
+      document.getElementById('jb-detail-body').innerHTML = bodyHtml;
 
-      document.getElementById('detail-body').innerHTML = bodyHtml;
-
-      // Note form
+      // ---- Notes form ----
       var noteHtml = '<form method="POST" action="/add-note" class="cy-note-form">';
       noteHtml += '<input type="hidden" name="id" value="' + job.id + '">';
       noteHtml += '<textarea name="notes" placeholder="Add notes..." rows="2">' + escapeHtml(job.notes || '') + '</textarea>';
       noteHtml += '<button type="submit" class="cy-btn cy-btn-sm cy-btn-accent">Save</button>';
       noteHtml += '</form>';
-      document.getElementById('detail-note-form').innerHTML = noteHtml;
+      document.getElementById('jb-detail-notes').innerHTML = noteHtml;
 
-      // Prevent body scroll
-      document.body.style.overflow = 'hidden';
+      // Scroll detail body to top
+      document.getElementById('jb-detail-body').scrollTop = 0;
     }
 
-    function closeJobDetail() {
-      document.getElementById('detail-overlay').classList.remove('active');
-      document.getElementById('detail-panel').style.display = 'none';
-      document.body.style.overflow = '';
+    /**
+     * Deselect job (used on mobile to go back to list)
+     */
+    function deselectJob() {
+      selectedJobId = null;
+      document.getElementById('jb-detail-panel').classList.remove('jb-detail-panel--active');
+      document.getElementById('jb-detail-empty').style.display = '';
+      document.getElementById('jb-detail-content').style.display = 'none';
+      var cards = document.querySelectorAll('.jb-card');
+      cards.forEach(function(card) { card.classList.remove('jb-card--active'); });
     }
 
-    // Close on Escape key
+    // Keyboard navigation: arrow keys to move through job list, Enter to select
     document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') closeJobDetail();
+      if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+
+      var cards = Array.from(document.querySelectorAll('.jb-card'));
+      if (cards.length === 0) return;
+
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault();
+        var currentIdx = cards.findIndex(function(c) { return c.classList.contains('jb-card--active'); });
+        var nextIdx = currentIdx < cards.length - 1 ? currentIdx + 1 : 0;
+        var nextId = cards[nextIdx].getAttribute('data-job-id');
+        selectJob(nextId);
+        cards[nextIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault();
+        var currentIdx = cards.findIndex(function(c) { return c.classList.contains('jb-card--active'); });
+        var prevIdx = currentIdx > 0 ? currentIdx - 1 : cards.length - 1;
+        var prevId = cards[prevIdx].getAttribute('data-job-id');
+        selectJob(prevId);
+        cards[prevIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      } else if (e.key === 'Escape') {
+        deselectJob();
+      }
     });
 
-    function escapeHtml(str) {
-      if (!str) return '';
-      var div = document.createElement('div');
-      div.appendChild(document.createTextNode(String(str)));
-      return div.innerHTML;
-    }
+    // Auto-select first job if there are any
+    (function() {
+      if (allJobs.length > 0) {
+        selectJob(allJobs[0].id);
+      }
+    })();
   </script>
 </body>
 </html>

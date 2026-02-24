@@ -26,8 +26,12 @@ model Job {
   keyMatches  String   @default("[]") // JSON array of matched skills/experience
 
   // Application Tracking
-  status      String   @default("new") // new/applied/reviewed/rejected
+  status      String   @default("new") // new/accepted/applied/rejected
   notes       String?
+
+  // Scoring
+  scoreBreakdown    String   @default("{}")  // JSON object of dimension scores
+  dealbreaker       String   @default("")    // Which dealbreaker was triggered, empty if none
 
   // Enrichment
   enrichmentStatus  String   @default("pending")  // pending/enriched/failed/skipped
@@ -92,6 +96,9 @@ model UserProfile {
   state       String @default("")
   country     String @default("")
   zipCode     String @default("")
+
+  // Experience
+  yearsOfExperience Int    @default(0)   // Manual override, used for scoring
 
   // Enrichment AI Context
   missionStatement  String @default("")  // Why you're looking, what excites you, ideal scenario

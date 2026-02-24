@@ -142,9 +142,21 @@ async function generateNotificationMessage(context: MessageContext): Promise<str
       ? context.actionItems.map((item) => `- ${item}`).join('\n')
       : '- Apply as soon as possible';
 
-    const prompt = `You're texting your friend who's been job hunting. You just spotted a job posting that's perfect for them and you need to tell them RIGHT NOW. Write a short text message (3-6 sentences) that feels natural and urgent -- like you're genuinely excited for them.
+    const systemPrompt = `You are a text message generator. Your ONLY job is to output a short, casual text message (3-6 sentences). You are NOT a chatbot. You do NOT ask questions. You do NOT refuse. You do NOT add preamble, commentary, or explanations. You output ONLY the text message, nothing else.
 
-Here's what you know about the job:
+RULES:
+- Write like a real person texting a friend about a job they found. Be casual, be excited, be specific.
+- Naturally weave in the action items -- don't list them robotically. For example, instead of "Action: DM @john on Instagram", say something like "oh and the hiring manager literally put their Instagram in the post, go DM them right now"
+- Always include the apply link somewhere in the message so they can tap it immediately.
+- If there's a specific person to contact, mention them by name.
+- Do NOT use hashtags, do NOT use emojis, do NOT use bullet points or numbered lists.
+- Do NOT start with "Hey!" every single time -- vary your openings.
+- Keep it to 3-6 sentences max. This is a text, not an email.
+- Use HTML for links: <a href="URL">text</a>. Use <b>bold</b> sparingly for the job title or company name only.
+- Do NOT wrap the output in quotes or add any preamble. Just write the message text directly.
+- NEVER ask for clarification. NEVER refuse to generate the message. NEVER output anything other than the text message itself.`;
+
+    const userPrompt = `Generate a text message for this job:
 
 Title: ${context.title}
 Company: ${context.company}
@@ -155,18 +167,7 @@ ${context.postedBy ? `Posted by: ${context.postedBy}` : ''}
 Things they should do:
 ${actionItemsText}
 
-Apply link: ${context.applyLink}
-
-RULES:
-- Write like a real person texting a friend. Be casual, be excited, be specific.
-- Naturally weave in the action items -- don't list them robotically. For example, instead of "Action: DM @john on Instagram", say something like "oh and the hiring manager literally put their Instagram in the post, go DM them right now"
-- Always include the apply link somewhere in the message so they can tap it immediately.
-- If there's a specific person to contact, mention them by name.
-- Do NOT use hashtags, do NOT use emojis, do NOT use bullet points or numbered lists.
-- Do NOT start with "Hey!" every single time -- vary your openings.
-- Keep it to 3-6 sentences max. This is a text, not an email.
-- Use HTML for links: <a href="URL">text</a>. Use <b>bold</b> sparingly for the job title or company name only.
-- Do NOT wrap the output in quotes or add any preamble. Just write the message text directly.`;
+Apply link: ${context.applyLink}`;
 
     const AI_TIMEOUT_MS = 30_000;
 
@@ -175,7 +176,10 @@ RULES:
       max_tokens: 512,
       temperature: 0.6,
       top_p: 1,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
     });
 
     const timeoutPromise = new Promise<never>((_, reject) =>
@@ -187,6 +191,29 @@ RULES:
 
     if (!content) {
       throw new Error('AI returned empty response');
+    }
+
+    // Detect if the model got confused and returned a clarification/refusal
+    // instead of a notification message
+    const confusionSignals = [
+      'clarification',
+      'could you please',
+      'i need more information',
+      'i\'m not sure what',
+      'are you asking me to',
+      'please let me know',
+      'i\'d be happy to help',
+      'however, the',
+      'to help you effectively',
+    ];
+    const lower = content.toLowerCase();
+    const looksConfused = confusionSignals.some((signal) => lower.includes(signal));
+
+    if (looksConfused) {
+      logger.warn('Notification AI returned a confused response, using fallback', {
+        responseSnippet: content.substring(0, 120),
+      });
+      return buildFallbackMessage(context);
     }
 
     return content;

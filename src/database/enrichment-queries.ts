@@ -115,6 +115,9 @@ export interface EnrichmentData {
   postedByTitle: string;
   postedByProfile: string;
   contactPeople: Array<{ name: string; title: string; profileUrl: string }>;
+  scoreBreakdown: object;
+  dealbreaker: string;
+  status?: string;
 }
 
 export async function updateJobEnrichment(id: string, data: EnrichmentData) {
@@ -138,6 +141,9 @@ export async function updateJobEnrichment(id: string, data: EnrichmentData) {
       postedByTitle: data.postedByTitle,
       postedByProfile: data.postedByProfile,
       contactPeople: JSON.stringify(data.contactPeople),
+      scoreBreakdown: JSON.stringify(data.scoreBreakdown),
+      dealbreaker: data.dealbreaker,
+      ...(data.status ? { status: data.status } : {}),
       enrichmentStatus: 'enriched',
       enrichedAt: new Date(),
     },

@@ -144,6 +144,11 @@ export interface EnrichmentProfileContext {
   dealbreakers: string[];
   preferredTechStack: string[];
   targetSeniority: string[];
+  willingToRelocate: boolean;
+  visaSponsorshipNeeded: boolean;
+  remoteOnly: boolean;
+  openToContract: boolean;
+  yearsOfExperience: number;
   workExperience: Array<{
     title: string;
     employer: string;
@@ -172,7 +177,8 @@ export interface EnrichmentJobData {
 
 /**
  * Builds the enrichment analysis prompt that scores a fully-scraped job
- * against the user's profile and priorities.
+ * against the user's profile and priorities. Returns structured JSON with
+ * dealbreaker detection, 10 AI sub-scores, extracted signals, and analysis.
  */
 export function buildEnrichmentAnalysisPrompt(
   profile: EnrichmentProfileContext,
@@ -193,10 +199,17 @@ export function buildEnrichmentAnalysisPrompt(
         .join('\n')
     : 'None found';
 
-  return `You are an intelligent job analyst. Analyze this job posting against the candidate's profile and priorities, then assign a priority level and provide actionable insights.
+  return `You are a structured job analysis engine. Analyze this job posting against the candidate profile below and return a detailed structured JSON response.
 
 CANDIDATE PROFILE:
 ${profile.profileSummaryCache || 'No profile summary available.'}
+
+CANDIDATE FACTS (use these for scoring -- do NOT contradict):
+- Years of professional experience: ${profile.yearsOfExperience}
+- Visa status: Has green card (does NOT need sponsorship)
+- Willing to relocate: ${profile.willingToRelocate ? 'Yes, anywhere in the US' : 'No'}
+- Remote preference: ${profile.remoteOnly ? 'Remote only' : 'Remote preferred but open to hybrid/onsite'}
+- Open to contract: ${profile.openToContract ? 'Yes' : 'No, full-time only'}
 
 WHAT THE CANDIDATE IS LOOKING FOR:
 ${profile.jobSearchDescription || 'Not specified.'}
@@ -214,7 +227,7 @@ ${experienceLines || 'No work experience listed.'}
 
 SKILLS: ${profile.skills.join(', ') || 'Not specified'}
 
-URGENCY TRIGGERS (if ANY of these are present, strongly consider "urgent" priority):
+URGENCY TRIGGERS (if ANY match, set urgencySignalMatched to true):
 ${profile.urgencySignals || 'No urgency triggers specified.'}
 
 ---
@@ -240,42 +253,112 @@ ${contactLines}
 
 ---
 
-ANALYSIS INSTRUCTIONS:
-1. Assign a PRIORITY based on these definitions:
-   - "urgent": This job has time-sensitive advantages. One or more urgency triggers match, OR there is a unique opportunity to make direct contact, OR this is an exceptionally strong match for the candidate's stated mission. The candidate should act on this TODAY.
-   - "high": Strong overall match. The role aligns well with the candidate's skills, interests, and career goals. Worth applying soon.
-   - "normal": Decent match. The candidate could apply, but there's nothing that sets this apart.
-   - "low": Borderline match. Saved by the title filter but the full description reveals it's not a great fit (wrong focus area, too senior/junior, unexciting domain, etc.).
+RESPOND WITH THREE SECTIONS IN A SINGLE JSON OBJECT:
 
-2. If ANY dealbreakers are found in the description, the priority should be "low" regardless of other factors.
+SECTION 1 -- DEALBREAKER DETECTION:
+Check these four dealbreakers. If ANY is true, the job scores 0.
 
-3. Pay special attention to:
-   - Direct contact opportunities (poster name, social media handles, "DM me", email addresses in description)
-   - Startup/small team signals ("founding", "first engineer", team size mentions)
-   - Alignment with key interests (especially if the company is building products in those areas)
-   - Red flags (years of experience mismatch, required skills the candidate lacks, on-site only when remote preferred)
+- seniorityTooHigh: True if the role clearly requires Senior, Staff, Principal, Lead, Director, VP, Head of, Architect, or Manager level experience based on the DESCRIPTION (not just the title). Look for phrases like "8+ years", "lead a team", "architect solutions", "mentor junior engineers" that indicate senior expectations.
+- clearanceRequired: True if ANY security clearance is required (Secret, Top Secret, TS/SCI, DoD, "must be clearable").
+- wrongTechDomain: True if the PRIMARY required stack is C++/CUDA, Java/Spring, C#/.NET, Embedded systems, or COBOL with zero meaningful overlap to the candidate's skills. A job that MENTIONS Java secondarily but primarily uses Python/TypeScript is NOT wrong-tech-domain.
+- experienceMinYears: Extract the MINIMUM years of experience mentioned in the description as a number, whether labeled required, preferred, desired, expected, or ideal. "3-6 years" = 3. "5+ years" = 5. "6 years minimum" = 6. "7+ years preferred" = 7. If two different year counts apply to different skills (e.g., "7+ years software, 3+ years AI"), use the HIGHEST number. Only return null if the description mentions NO years of experience at all. IMPORTANT: this field drives automatic dealbreaker detection — always extract a number if any year count appears in the posting.
 
-4. Generate 1-3 specific ACTION ITEMS when applicable. These should be concrete next steps:
-   - "DM [name] on [platform] -- they invited direct messages"
-   - "Mention your experience with [specific tech] -- it's their primary stack"
-   - "Apply through their company website at [URL] for faster response"
-   - "Check if [name] ([LinkedIn URL]) is a mutual connection"
-   Do NOT generate generic action items like "apply to this job" or "update your resume". Only include actions that are specific to THIS posting.
+SECTION 2 -- DIMENSION SUB-SCORES (0-10 each):
+Score these 10 dimensions using the exact rubric below.
 
-5. Note any RED FLAGS -- things that might make this job worse than it appears:
-   - Required experience significantly above candidate's level
-   - Skills requirements that don't match
-   - High applicant count (200+) reducing chances
-   - Signs of a re-post or long-unfilled position
+1. techStack: 0 = zero overlap with candidate's skills. 5 = some overlap (1-2 technologies match). 8 = strong overlap (3+ core technologies). 10 = exact stack match (React/Next.js/Node/Python/FastAPI all listed).
+2. roleType: 0 = purely advisory/consulting/maintaining legacy. 5 = mixed building and maintenance. 8 = primarily building new features/products. 10 = greenfield product development, building from scratch.
+3. aiRelevance: 0 = no AI/ML mention at all. 3 = vague "we use AI" without specifics. 6 = AI is part of the product but not the core job. 8 = building AI features, LLM integration, agents. 10 = core AI product role (RAG, prompt engineering, AI agents, LLM applications).
+4. fullStackBreadth: 0 = extremely narrow scope. 5 = frontend OR backend only. 8 = frontend + backend. 10 = true full-stack (frontend + backend + infrastructure/deployment).
+5. productOwnership: 0 = "implement tickets from Jira." 5 = standard team contributor. 8 = "own features end-to-end." 10 = "ship the product, work directly with founders, wear many hats."
+6. companyStage: 0 = large enterprise (5000+ employees). 3 = mid-to-large (1000-5000). 5 = mid-size (200-1000). 7 = growth-stage startup (50-200). 9 = early-stage (<50). 10 = founding team, first engineer, recently funded, <20 people.
+7. growthPotential: 0 = dead-end ticket-grinding. 5 = standard corporate career path. 8 = work with senior engineers, exposure to architecture. 10 = work directly with founders/CTO, mentorship, rapid skill growth.
+8. descriptionQuality: 0 = empty/vague boilerplate, buzzword soup, likely ghost listing. 5 = adequate but generic. 8 = specific requirements, clear team context. 10 = detailed projects, named technologies, real team description.
+9. postingFreshness: 0 = clear repost signals (huge applicants for "new" listing). 5 = no signal either way. 10 = clearly fresh, low applicant count, specific/timely language.
+10. posterRole: Founder/CTO = 10. Engineering manager = 8. In-house recruiter = 6. External recruiter/staffing agency = 3. No info = 4.
+
+SECTION 3 -- EXTRACTED SIGNALS AND ANALYSIS:
+Extract these boolean/string signals from the posting:
+
+- workArrangement: "remote" | "hybrid" | "onsite" | "unknown"
+- applicationMethod: "easyApply" | "externalSite" | "directReferral" | "unknown"
+- urgencySignalMatched: true if any of the candidate's urgency triggers match this posting
+- isFoundingRole: true if description mentions founding engineer, first hire, first engineer
+- recentFunding: true if company recently raised money (mentioned in description/company info)
+- dmInvitation: true if poster explicitly invites direct outreach ("DM me", "reach out directly", email in post)
+- exactStackCount: count of candidate's core technologies (React, Next.js, Node, Python, FastAPI) explicitly listed in the description (0-5+)
+- isStaffingAgency: true if posted by a recruiting/staffing firm, not the actual company
+- highApplicantCount: true if 500+ applicants
+- ghostListingSignals: true if multiple signs of inactivity (huge applicants + vague description + no poster info)
+- repostSignal: true if clear indicators this is a recycled/re-posted listing
+
+Also provide human-readable analysis:
+- matchReason: 2-3 sentence summary of overall fit
+- keyMatches: array of specific matching qualifications/technologies
+- actionItems: 1-3 SPECIFIC action items (not generic). Examples: "DM [name] on LinkedIn", "Mention your experience with [tech]", "Apply through their careers page at [URL]". Do NOT generate generic items like "apply to this job".
+- redFlags: array of factual red flags (see rules below)
+
+RED FLAGS RULES -- follow these EXACTLY:
+A red flag is ONLY a factual problem verifiable from the posting text. It must be something the candidate needs to know that is NOT already captured by the scoring dimensions.
+
+VALID red flags (examples):
+- "Requires 5 years of Java experience (candidate has 0 Java experience)"
+- "Posting mentions this is a re-opening after previous hire left"
+- "350+ applicants already"
+- "Description appears copy-pasted from a different company's listing"
+
+NEVER flag ANY of the following (these are scored via dimensions, not red flags):
+- Company size or type (scored in companyStage dimension)
+- Industry not being AI or startup (scored in aiRelevance and companyStage)
+- On-site, hybrid, or relocation requirement (candidate has green card and is willing to relocate ANYWHERE in the US)
+- Visa sponsorship not offered (candidate has a GREEN CARD and does NOT need sponsorship)
+- Lack of direct contact info (scored in directContact dimension)
+- The role not being at a startup (scored in companyStage dimension)
+- Any PREFERENCE mismatch already reflected in a scoring dimension
+- The ABSENCE of a positive signal (e.g., "no mention of AI" is not a red flag -- it's a low aiRelevance score)
+
+If there are no legitimate red flags, return an empty array.
+
+---
 
 Respond with ONLY valid JSON (no markdown, no code fences):
 {
-  "priority": "urgent" | "high" | "normal" | "low",
-  "priorityReason": "<1-2 sentence explanation of why this priority was assigned>",
-  "matchScore": <number 0-100>,
-  "matchReason": "<2-3 sentence analysis of how well this job fits the candidate>",
-  "keyMatches": ["specific match 1", "specific match 2"],
-  "actionItems": ["concrete action 1", "concrete action 2"],
-  "redFlags": ["red flag 1"]
+  "dealbreakers": {
+    "seniorityTooHigh": false,
+    "clearanceRequired": false,
+    "wrongTechDomain": false,
+    "experienceMinYears": null
+  },
+  "scores": {
+    "techStack": 0,
+    "roleType": 0,
+    "aiRelevance": 0,
+    "fullStackBreadth": 0,
+    "productOwnership": 0,
+    "companyStage": 0,
+    "growthPotential": 0,
+    "descriptionQuality": 0,
+    "postingFreshness": 0,
+    "posterRole": 0
+  },
+  "extracted": {
+    "workArrangement": "unknown",
+    "applicationMethod": "unknown",
+    "urgencySignalMatched": false,
+    "isFoundingRole": false,
+    "recentFunding": false,
+    "dmInvitation": false,
+    "exactStackCount": 0,
+    "isStaffingAgency": false,
+    "highApplicantCount": false,
+    "ghostListingSignals": false,
+    "repostSignal": false
+  },
+  "analysis": {
+    "matchReason": "",
+    "keyMatches": [],
+    "actionItems": [],
+    "redFlags": []
+  }
 }`;
 }

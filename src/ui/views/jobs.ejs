@@ -24,7 +24,7 @@
           var totalJobs = stats.totalJobs || 0;
           var newCount = stats.statusCounts.new || 0;
           var appliedCount = stats.statusCounts.applied || 0;
-          var reviewedCount = stats.statusCounts.reviewed || 0;
+          var acceptedCount = stats.statusCounts.accepted || 0;
           var urgentCount = stats.priorityCounts.urgent || 0;
           var highCount = stats.priorityCounts.high || 0;
           var pendingEnrich = stats.pendingEnrichment || 0;
@@ -90,7 +90,7 @@
               <span class="cy-stat-label">Applied</span>
               <span class="cy-stat-value green"><%= appliedCount %></span>
               <span class="cy-stat-compare">
-                <%= reviewedCount %> reviewed
+                <%= acceptedCount %> accepted
                 <span class="cy-stat-badge neutral">
                   <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="2" fill="currentColor"/></svg>
                   total
@@ -203,8 +203,8 @@
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         <% } else if (job.status === 'applied') { %>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                        <% } else if (job.status === 'reviewed') { %>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="1"/><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/></svg>
+                        <% } else if (job.status === 'accepted') { %>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/><path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
                         <% } else { %>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                         <% } %>

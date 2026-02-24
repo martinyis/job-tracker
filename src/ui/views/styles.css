@@ -645,10 +645,10 @@ a:hover { color: var(--accent); }
   border: 1px solid var(--green-border);
 }
 
-.cy-activity-icon.reviewed {
-  background: var(--yellow-dim);
-  color: var(--yellow-text);
-  border: 1px solid var(--yellow-border);
+.cy-activity-icon.accepted {
+  background: var(--blue-dim);
+  color: var(--blue-text);
+  border: 1px solid var(--blue-border);
 }
 
 .cy-activity-icon.rejected {
@@ -859,7 +859,7 @@ a:hover { color: var(--accent); }
 }
 
 .cy-kanban-dot.new { border: 2px solid var(--accent); background: transparent; }
-.cy-kanban-dot.reviewed { background: var(--yellow); }
+.cy-kanban-dot.accepted { background: var(--blue); }
 .cy-kanban-dot.applied { background: var(--green); }
 .cy-kanban-dot.rejected { background: var(--red); }
 
@@ -1355,10 +1355,9 @@ a:hover { color: var(--accent); }
 }
 
 .cy-status.new { background: var(--accent-subtle); color: var(--accent-text); border: 1px solid var(--accent-border); }
-.cy-status.reviewed { background: var(--yellow-dim); color: var(--yellow-text); border: 1px solid var(--yellow-border); }
+.cy-status.accepted { background: var(--blue-dim); color: var(--blue-text); border: 1px solid var(--blue-border); }
 .cy-status.applied { background: var(--green-dim); color: var(--green-text); border: 1px solid var(--green-border); }
 .cy-status.rejected { background: var(--red-dim); color: var(--red-text); border: 1px solid var(--red-border); }
-.cy-status.applying { background: var(--purple-dim); color: var(--purple-text); border: 1px solid var(--purple-border); }
 
 
 /* ================================================================
@@ -2266,6 +2265,551 @@ a:hover { color: var(--accent); }
 
 
 /* ================================================================
+   JOBS SPLIT-PANE LAYOUT (Master/Detail)
+   Prefixed with jb- to namespace from other page styles
+   ================================================================ */
+
+/* Remove max-width and reduce padding for the jobs page */
+.cy-page--jobs {
+  max-width: none;
+  padding: var(--sp-5) var(--sp-6) var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 0px);
+  overflow: hidden;
+}
+
+/* ---- Page Header (compact) ---------------------------------- */
+.jb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-3);
+  flex-shrink: 0;
+}
+
+.jb-header-left {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-3);
+}
+
+.jb-header-left h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.jb-header-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.jb-header-right {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+/* Shrink filters for compact fit */
+.cy-page--jobs .cy-filters {
+  margin-bottom: var(--sp-4);
+  flex-shrink: 0;
+}
+
+/* ---- Split Pane Container ----------------------------------- */
+.jb-split {
+  display: flex;
+  gap: 0;
+  flex: 1;
+  min-height: 0; /* critical for flex children to scroll */
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+/* ---- Left Panel: Job List ----------------------------------- */
+.jb-list-panel {
+  width: 420px;
+  min-width: 320px;
+  max-width: 480px;
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 0;
+  background: var(--bg-card);
+}
+
+.jb-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---- Job Card (list item) ----------------------------------- */
+.jb-card {
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+  position: relative;
+  border-left: 3px solid transparent;
+}
+
+.jb-card:last-child {
+  border-bottom: none;
+}
+
+.jb-card:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.jb-card:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* Active/selected state -- accent left border + subtle bg shift */
+.jb-card--active {
+  background: var(--accent-subtle);
+  border-left-color: var(--accent);
+}
+
+.jb-card--active:hover {
+  background: var(--accent-subtle);
+}
+
+/* Priority left-border stripes (overridden by active state) */
+.jb-card--urgent:not(.jb-card--active) {
+  border-left-color: var(--red);
+}
+
+.jb-card--high:not(.jb-card--active) {
+  border-left-color: var(--accent);
+}
+
+/* Card top row: badges + score */
+.jb-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  margin-bottom: 6px;
+}
+
+.jb-card-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.jb-card-score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.jb-card-score.excellent { background: var(--green-dim); color: var(--green-text); border: 1px solid var(--green-border); }
+.jb-card-score.good { background: var(--yellow-dim); color: var(--yellow-text); border: 1px solid var(--yellow-border); }
+.jb-card-score.decent { background: var(--accent-subtle); color: var(--accent-text); border: 1px solid var(--accent-border); }
+.jb-card-score.low { background: var(--red-dim); color: var(--red-text); border: 1px solid var(--red-border); }
+.jb-card-score.none { background: rgba(255, 255, 255, 0.03); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+
+/* Card title */
+.jb-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 2px;
+}
+
+/* Card company */
+.jb-card-company {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 6px;
+}
+
+/* Card bottom meta row */
+.jb-card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.jb-card-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.jb-card-date svg {
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.jb-card-type {
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+}
+
+
+/* ---- Right Panel: Detail ------------------------------------ */
+.jb-detail-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+
+/* Empty state */
+.jb-detail-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--sp-8);
+  gap: var(--sp-4);
+}
+
+.jb-detail-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.jb-detail-empty-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+/* Detail content wrapper */
+.jb-detail-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Detail header */
+.jb-detail-header {
+  padding: var(--sp-5) var(--sp-6);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.jb-detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-4);
+}
+
+.jb-detail-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.3;
+  letter-spacing: -0.3px;
+  margin: 0;
+}
+
+.jb-detail-subtitle {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  margin-top: 4px;
+}
+
+/* Mobile back/close button (hidden on desktop) */
+.jb-detail-close-mobile {
+  display: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  color: var(--text-tertiary);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--t-fast) var(--ease);
+}
+
+.jb-detail-close-mobile:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* Action bar */
+.jb-detail-actions {
+  padding: var(--sp-3) var(--sp-6);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.jb-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.jb-action-links {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.jb-status-form {
+  display: inline-flex;
+}
+
+/* ---- Decision Buttons (Accept / Reject) -------------------- */
+.jb-decision-actions {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
+
+.jb-already-applied-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--sp-2);
+}
+
+.jb-decision-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  border: 2px solid;
+  transition: all var(--t-fast) var(--ease);
+  padding: 0;
+}
+
+.jb-decision-btn--accept {
+  background: var(--green-dim);
+  border-color: var(--green-border);
+  color: var(--green-text);
+}
+
+.jb-decision-btn--accept:hover {
+  background: var(--green-text);
+  border-color: var(--green-text);
+  color: #fff;
+  transform: scale(1.08);
+}
+
+.jb-decision-btn--reject {
+  background: var(--red-dim);
+  border-color: var(--red-border);
+  color: var(--red-text);
+}
+
+.jb-decision-btn--reject:hover {
+  background: var(--red-text);
+  border-color: var(--red-text);
+  color: #fff;
+  transform: scale(1.08);
+}
+
+/* ---- Subtle sub-action (Mark Applied) ---------------------- */
+.jb-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--r-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid;
+  transition: all var(--t-fast) var(--ease);
+  font-family: var(--font-sans);
+  white-space: nowrap;
+}
+
+.jb-action-btn svg {
+  flex-shrink: 0;
+}
+
+.jb-action-btn--applied {
+  background: transparent;
+  border-color: var(--green-border);
+  color: var(--green-text);
+}
+
+.jb-action-btn--applied:hover {
+  background: var(--green-dim);
+  border-color: var(--green-text);
+}
+
+/* ---- Verdict Card (priority reason + red flags at top) ----- */
+.jb-verdict {
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  margin-bottom: var(--sp-5);
+  border: 1px solid;
+  position: relative;
+}
+
+.jb-verdict--urgent {
+  background: rgba(239, 68, 68, 0.04);
+  border-color: rgba(239, 68, 68, 0.20);
+}
+
+.jb-verdict--high {
+  background: rgba(245, 158, 11, 0.04);
+  border-color: rgba(245, 158, 11, 0.20);
+}
+
+.jb-verdict--normal,
+.jb-verdict--low {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: var(--border-default);
+}
+
+/* Top bar: score circle + priority tag */
+.jb-verdict-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-4);
+}
+
+.jb-verdict-score {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.jb-verdict-score-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.jb-verdict-score-num.excellent { background: var(--green-dim); color: var(--green-text); border: 2px solid var(--green-border); }
+.jb-verdict-score-num.good { background: var(--yellow-dim); color: var(--yellow-text); border: 2px solid var(--yellow-border); }
+.jb-verdict-score-num.decent { background: var(--accent-subtle); color: var(--accent-text); border: 2px solid var(--accent-border); }
+.jb-verdict-score-num.low { background: var(--red-dim); color: var(--red-text); border: 2px solid var(--red-border); }
+.jb-verdict-score-num.none { background: rgba(255, 255, 255, 0.03); color: var(--text-muted); border: 2px solid var(--border-subtle); }
+
+.jb-verdict-score-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Reason text */
+.jb-verdict-reason {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* Red flags section inside the verdict card */
+.jb-verdict-flags {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-4);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.jb-verdict-flags-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--red-text);
+  margin-bottom: var(--sp-3);
+}
+
+.jb-verdict-flag {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+  padding: 4px 0;
+  padding-left: var(--sp-4);
+  position: relative;
+}
+
+.jb-verdict-flag::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 12px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--red-text);
+  opacity: 0.5;
+}
+
+/* Detail body (scrollable) */
+.jb-detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--sp-6);
+}
+
+/* Notes form (pinned at bottom) */
+.jb-detail-notes {
+  padding: var(--sp-4) var(--sp-6);
+  border-top: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+
+/* ================================================================
    RESPONSIVE
    ================================================================ */
 
@@ -2275,6 +2819,12 @@ a:hover { color: var(--accent); }
   }
   .cy-stats-row {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Narrow the list panel on medium screens */
+  .jb-list-panel {
+    width: 340px;
+    min-width: 280px;
   }
 }
 
@@ -2326,6 +2876,88 @@ a:hover { color: var(--accent); }
 
   .cy-detail-panel {
     width: 100vw;
+  }
+
+  /* ---- Jobs split-pane mobile: stacked layout ---- */
+  .cy-page--jobs {
+    padding: var(--sp-3);
+    height: 100vh;
+  }
+
+  .jb-header-left h1 {
+    font-size: 20px;
+  }
+
+  .jb-split {
+    flex-direction: column;
+    position: relative;
+  }
+
+  .jb-list-panel {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    border-right: none;
+    border-bottom: 1px solid var(--border-subtle);
+    flex: 1;
+  }
+
+  /* Detail panel slides over the list on mobile */
+  .jb-detail-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    transform: translateX(100%);
+    transition: transform var(--t-slow) var(--ease);
+    border-radius: 0;
+  }
+
+  .jb-detail-panel--active {
+    transform: translateX(0);
+  }
+
+  /* Show the close/back button on mobile */
+  .jb-detail-close-mobile {
+    display: flex;
+  }
+
+  .jb-detail-header {
+    padding: var(--sp-4) var(--sp-5);
+  }
+
+  .jb-detail-actions {
+    padding: var(--sp-3) var(--sp-5);
+  }
+
+  .jb-detail-body {
+    padding: var(--sp-5);
+  }
+
+  .jb-detail-notes {
+    padding: var(--sp-3) var(--sp-5);
+  }
+
+  .jb-action-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .jb-action-links {
+    flex-wrap: wrap;
+  }
+
+  .jb-decision-actions {
+    flex-wrap: wrap;
+  }
+
+  .jb-decision-btn {
+    width: 38px;
+    height: 38px;
+  }
+
+  .jb-action-btn {
+    padding: 5px 10px;
+    font-size: 11px;
   }
 }
 
@@ -3307,4 +3939,140 @@ a:hover { color: var(--accent); }
   .cy-personal-grid {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* ================================================================
+   SCORE BREAKDOWN GRID
+   ================================================================ */
+
+.jb-dealbreaker-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  background: var(--red-dim);
+  border: 1px solid var(--red-border);
+  border-radius: var(--r-lg);
+  color: var(--red-text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.jb-dealbreaker-banner svg {
+  flex-shrink: 0;
+  stroke: var(--red-text);
+}
+
+.jb-dealbreaker-banner strong {
+  color: var(--red-text);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.jb-score-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.jb-score-cat-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  padding: 8px 0 2px;
+}
+
+.jb-score-cat-label:first-child {
+  padding-top: 0;
+}
+
+.jb-score-row {
+  display: grid;
+  grid-template-columns: 130px 36px 1fr 28px;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.jb-score-dim-name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jb-score-dim-weight {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.jb-score-bar-track {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.jb-score-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s var(--ease);
+}
+
+.jb-score-bar-fill.high { background: var(--green); }
+.jb-score-bar-fill.mid { background: var(--accent); }
+.jb-score-bar-fill.low { background: var(--red); opacity: 0.7; }
+
+.jb-score-dim-val {
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.jb-score-modifiers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.jb-mod-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.jb-mod-label.jb-mod-bonus { color: var(--green-text); }
+.jb-mod-label.jb-mod-penalty { color: var(--red-text); }
+
+.jb-mod-tag {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: var(--r-full);
+  font-weight: 500;
+}
+
+.jb-mod-tag--bonus {
+  background: var(--green-dim);
+  color: var(--green-text);
+  border: 1px solid var(--green-border);
+}
+
+.jb-mod-tag--penalty {
+  background: var(--red-dim);
+  color: var(--red-text);
+  border: 1px solid var(--red-border);
 }

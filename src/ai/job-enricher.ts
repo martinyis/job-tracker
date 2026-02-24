@@ -6,19 +6,23 @@ import {
   EnrichmentProfileContext,
   EnrichmentJobData,
 } from './prompts';
+import type { AIScores, DealbreakersResult, ExtractedSignals } from './scoring-engine';
 
 export interface EnrichmentAnalysis {
-  priority: 'urgent' | 'high' | 'normal' | 'low';
-  priorityReason: string;
-  matchScore: number;
-  matchReason: string;
-  keyMatches: string[];
-  actionItems: string[];
-  redFlags: string[];
+  dealbreakers: DealbreakersResult;
+  scores: AIScores;
+  extracted: ExtractedSignals;
+  analysis: {
+    matchReason: string;
+    keyMatches: string[];
+    actionItems: string[];
+    redFlags: string[];
+  };
   aiFailed?: boolean;
 }
 
-const VALID_PRIORITIES = ['urgent', 'high', 'normal', 'low'] as const;
+const VALID_WORK_ARRANGEMENTS = ['remote', 'hybrid', 'onsite', 'unknown'] as const;
+const VALID_APP_METHODS = ['easyApply', 'externalSite', 'directReferral', 'unknown'] as const;
 
 function createClient(): OpenAI {
   return new OpenAI({
@@ -27,9 +31,29 @@ function createClient(): OpenAI {
   });
 }
 
+/** Clamp a number to 0-10, defaulting to a fallback if invalid. */
+function clampScore(value: unknown, fallback = 5): number {
+  const n = Number(value);
+  if (isNaN(n)) return fallback;
+  return Math.max(0, Math.min(10, Math.round(n)));
+}
+
+/** Ensure a value is a boolean. */
+function ensureBool(value: unknown): boolean {
+  return value === true;
+}
+
+/** Ensure a value is in a set of valid strings. */
+function ensureEnum<T extends string>(value: unknown, valid: readonly T[], fallback: T): T {
+  if (typeof value === 'string' && (valid as readonly string[]).includes(value)) {
+    return value as T;
+  }
+  return fallback;
+}
+
 /**
  * Calls the AI with the enrichment prompt and returns a structured analysis.
- * On failure, returns a default result with priority "normal" and aiFailed=true.
+ * On failure, returns a default result with aiFailed=true.
  */
 export async function analyzeEnrichedJob(
   profileContext: EnrichmentProfileContext,
@@ -44,7 +68,7 @@ export async function analyzeEnrichedJob(
 
     const aiPromise = client.chat.completions.create({
       model: config.nvidia.model,
-      max_tokens: config.nvidia.maxTokens,
+      max_tokens: 8192,
       temperature: config.nvidia.temperature,
       top_p: 1,
       messages: [{ role: 'user', content: prompt }],
@@ -70,31 +94,21 @@ export async function analyzeEnrichedJob(
     }
 
     const cleaned = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const parsed = JSON.parse(cleaned) as EnrichmentAnalysis;
+    const parsed = JSON.parse(cleaned);
 
-    // Validate response structure
-    if (!VALID_PRIORITIES.includes(parsed.priority as any)) {
-      parsed.priority = 'normal';
-    }
-    if (typeof parsed.matchScore !== 'number' || parsed.matchScore < 0 || parsed.matchScore > 100) {
-      parsed.matchScore = Math.max(0, Math.min(100, Math.round(Number(parsed.matchScore) || 0)));
-    }
-    if (typeof parsed.priorityReason !== 'string') parsed.priorityReason = '';
-    if (typeof parsed.matchReason !== 'string') parsed.matchReason = '';
-    if (!Array.isArray(parsed.keyMatches)) parsed.keyMatches = [];
-    if (!Array.isArray(parsed.actionItems)) parsed.actionItems = [];
-    if (!Array.isArray(parsed.redFlags)) parsed.redFlags = [];
+    // Validate and normalize the response
+    const result = validateResponse(parsed);
 
     logger.info('Enrichment AI analysis complete', {
       title: jobData.title,
       company: jobData.company,
-      priority: parsed.priority,
-      matchScore: parsed.matchScore,
-      actionItems: parsed.actionItems.length,
-      redFlags: parsed.redFlags.length,
+      dealbreakers: result.dealbreakers,
+      scores: result.scores,
+      actionItems: result.analysis.actionItems.length,
+      redFlags: result.analysis.redFlags.length,
     });
 
-    return parsed;
+    return result;
   } catch (error) {
     logger.error('Enrichment AI call failed', {
       title: jobData.title,
@@ -102,15 +116,96 @@ export async function analyzeEnrichedJob(
       error: error instanceof Error ? error.message : String(error),
     });
 
-    return {
-      priority: 'normal',
-      priorityReason: '',
-      matchScore: 0,
+    return getDefaultAnalysis();
+  }
+}
+
+function validateResponse(parsed: any): EnrichmentAnalysis {
+  const db = parsed.dealbreakers || {};
+  const sc = parsed.scores || {};
+  const ex = parsed.extracted || {};
+  const an = parsed.analysis || {};
+
+  return {
+    dealbreakers: {
+      seniorityTooHigh: ensureBool(db.seniorityTooHigh),
+      clearanceRequired: ensureBool(db.clearanceRequired),
+      wrongTechDomain: ensureBool(db.wrongTechDomain),
+      experienceMinYears: typeof db.experienceMinYears === 'number' ? db.experienceMinYears : null,
+    },
+    scores: {
+      techStack: clampScore(sc.techStack),
+      roleType: clampScore(sc.roleType),
+      aiRelevance: clampScore(sc.aiRelevance),
+      fullStackBreadth: clampScore(sc.fullStackBreadth),
+      productOwnership: clampScore(sc.productOwnership),
+      companyStage: clampScore(sc.companyStage),
+      growthPotential: clampScore(sc.growthPotential),
+      descriptionQuality: clampScore(sc.descriptionQuality),
+      postingFreshness: clampScore(sc.postingFreshness),
+      posterRole: clampScore(sc.posterRole),
+    },
+    extracted: {
+      workArrangement: ensureEnum(ex.workArrangement, VALID_WORK_ARRANGEMENTS, 'unknown'),
+      applicationMethod: ensureEnum(ex.applicationMethod, VALID_APP_METHODS, 'unknown'),
+      urgencySignalMatched: ensureBool(ex.urgencySignalMatched),
+      isFoundingRole: ensureBool(ex.isFoundingRole),
+      recentFunding: ensureBool(ex.recentFunding),
+      dmInvitation: ensureBool(ex.dmInvitation),
+      exactStackCount: Math.max(0, Math.round(Number(ex.exactStackCount) || 0)),
+      isStaffingAgency: ensureBool(ex.isStaffingAgency),
+      highApplicantCount: ensureBool(ex.highApplicantCount),
+      ghostListingSignals: ensureBool(ex.ghostListingSignals),
+      repostSignal: ensureBool(ex.repostSignal),
+    },
+    analysis: {
+      matchReason: typeof an.matchReason === 'string' ? an.matchReason : '',
+      keyMatches: Array.isArray(an.keyMatches) ? an.keyMatches.filter((x: any) => typeof x === 'string') : [],
+      actionItems: Array.isArray(an.actionItems) ? an.actionItems.filter((x: any) => typeof x === 'string') : [],
+      redFlags: Array.isArray(an.redFlags) ? an.redFlags.filter((x: any) => typeof x === 'string') : [],
+    },
+  };
+}
+
+function getDefaultAnalysis(): EnrichmentAnalysis {
+  return {
+    dealbreakers: {
+      seniorityTooHigh: false,
+      clearanceRequired: false,
+      wrongTechDomain: false,
+      experienceMinYears: null,
+    },
+    scores: {
+      techStack: 0,
+      roleType: 0,
+      aiRelevance: 0,
+      fullStackBreadth: 0,
+      productOwnership: 0,
+      companyStage: 0,
+      growthPotential: 0,
+      descriptionQuality: 0,
+      postingFreshness: 0,
+      posterRole: 0,
+    },
+    extracted: {
+      workArrangement: 'unknown',
+      applicationMethod: 'unknown',
+      urgencySignalMatched: false,
+      isFoundingRole: false,
+      recentFunding: false,
+      dmInvitation: false,
+      exactStackCount: 0,
+      isStaffingAgency: false,
+      highApplicantCount: false,
+      ghostListingSignals: false,
+      repostSignal: false,
+    },
+    analysis: {
       matchReason: '',
       keyMatches: [],
       actionItems: [],
       redFlags: [],
-      aiFailed: true,
-    };
-  }
+    },
+    aiFailed: true,
+  };
 }
