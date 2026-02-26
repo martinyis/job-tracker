@@ -129,11 +129,29 @@
               <!-- Action bar -->
               <div class="jb-detail-actions" id="jb-detail-actions"></div>
 
-              <!-- Scrollable body -->
+              <!-- Tab bar -->
+              <div class="jb-tab-bar">
+                <button class="jb-tab jb-tab--active" id="jb-tab-info" onclick="switchDetailTab('info')">Info</button>
+                <button class="jb-tab" id="jb-tab-chat" onclick="switchDetailTab('chat')">Chat</button>
+              </div>
+
+              <!-- Tab: Info (scrollable job body) -->
               <div class="jb-detail-body" id="jb-detail-body"></div>
 
-              <!-- Note form (pinned at bottom) -->
-              <div class="jb-detail-notes" id="jb-detail-notes"></div>
+              <!-- Tab: Chat -->
+              <div class="jb-chat" id="jb-chat" style="display: none;">
+                <div class="jb-chat-messages" id="jb-chat-messages">
+                </div>
+                <div class="jb-chat-input-row">
+                  <button class="jb-chat-clear-btn" onclick="clearChat()" title="Clear chat">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </button>
+                  <textarea class="jb-chat-input" id="jb-chat-input" placeholder="Ask about this job or request a message draft..." rows="1" onkeydown="handleChatKeydown(event)"></textarea>
+                  <button class="jb-chat-send" id="jb-chat-send" onclick="sendChatMessage()" title="Send">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -222,7 +240,7 @@
       var bodyHtml = '';
       var scoreClass = job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : job.matchScore >= 50 ? 'decent' : job.matchScore > 0 ? 'low' : 'none';
 
-      // ---- Dealbreaker banner ----
+      // ---- 1. Dealbreaker banner ----
       if (job.enrichmentStatus === 'enriched' && job.dealbreakerDisplay) {
         var dealbreakLabels = {
           seniorityTooHigh: 'Seniority too high',
@@ -236,22 +254,19 @@
         bodyHtml += '</div>';
       }
 
-      // ---- Priority callout + Red flags (TOP — the decision-making zone) ----
+      // ---- 2. Priority callout + Red flags (verdict) ----
       if (job.enrichmentStatus === 'enriched' && !job.dealbreakerDisplay && (job.priorityReason || (job.redFlagsParsed && job.redFlagsParsed.length > 0))) {
         bodyHtml += '<div class="jb-verdict jb-verdict--' + (job.priority || 'normal') + '">';
 
-        // Top bar: score + priority tag
         bodyHtml += '<div class="jb-verdict-topbar">';
         bodyHtml += '<div class="jb-verdict-score"><span class="jb-verdict-score-num ' + scoreClass + '">' + job.matchScore + '</span><span class="jb-verdict-score-label">Match</span></div>';
         if (job.priority) bodyHtml += '<span class="cy-priority ' + job.priority + '">' + job.priority.toUpperCase() + '</span>';
         bodyHtml += '</div>';
 
-        // Priority reason
         if (job.priorityReason) {
           bodyHtml += '<p class="jb-verdict-reason">' + escapeHtml(job.priorityReason) + '</p>';
         }
 
-        // Red flags inline
         if (job.redFlagsParsed && job.redFlagsParsed.length > 0) {
           bodyHtml += '<div class="jb-verdict-flags">';
           bodyHtml += '<div class="jb-verdict-flags-label"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>Heads Up</div>';
@@ -264,11 +279,49 @@
         bodyHtml += '</div>';
       }
 
-      // ---- Score Breakdown (new 16-dimension grid) ----
+      // ---- 3. Action Items (PROMOTED — right after verdict) ----
+      if (job.enrichmentStatus === 'enriched' && job.actionItemsParsed && job.actionItemsParsed.length > 0) {
+        bodyHtml += '<div class="cy-detail-section jb-action-items-prominent">';
+        bodyHtml += '<div class="cy-detail-section-title">Action Items</div>';
+        bodyHtml += '<ul class="cy-action-list">';
+        job.actionItemsParsed.forEach(function(item) {
+          bodyHtml += '<li>' + escapeHtml(item) + '</li>';
+        });
+        bodyHtml += '</ul></div>';
+      }
+
+      // ---- 4. Contacts (PROMOTED — right after action items) ----
+      if (job.enrichmentStatus === 'enriched' && ((job.contactPeopleParsed && job.contactPeopleParsed.length > 0) || job.postedBy)) {
+        bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">People to Reach Out To</div>';
+        if (job.postedBy) {
+          bodyHtml += '<div class="cy-contact-person"><strong>Posted by:</strong>&nbsp;';
+          if (job.postedByProfile) bodyHtml += '<a href="' + escapeHtml(job.postedByProfile) + '" target="_blank">' + escapeHtml(job.postedBy) + '</a>';
+          else bodyHtml += escapeHtml(job.postedBy);
+          if (job.postedByTitle) bodyHtml += ' <span class="cy-hint">&mdash; ' + escapeHtml(job.postedByTitle) + '</span>';
+          bodyHtml += '</div>';
+        }
+        if (job.contactPeopleParsed) {
+          job.contactPeopleParsed.forEach(function(person) {
+            bodyHtml += '<div class="cy-contact-person">';
+            if (person.profileUrl) bodyHtml += '<a href="' + escapeHtml(person.profileUrl) + '" target="_blank">' + escapeHtml(person.name) + '</a>';
+            else bodyHtml += escapeHtml(person.name);
+            if (person.title) bodyHtml += ' <span class="cy-hint">&mdash; ' + escapeHtml(person.title) + '</span>';
+            bodyHtml += '</div>';
+          });
+        }
+        bodyHtml += '</div>';
+      }
+
+      // ---- 5. Score Breakdown (collapsible, closed by default) ----
       var bd = job.scoreBreakdownParsed || {};
       var hasBreakdown = bd.techStack !== undefined && !job.dealbreakerDisplay;
       if (job.enrichmentStatus === 'enriched' && hasBreakdown) {
-        bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Score Breakdown</div>';
+        bodyHtml += '<div class="cy-detail-section jb-collapsible">';
+        bodyHtml += '<div class="jb-collapsible-header" onclick="toggleCollapsible(this)">';
+        bodyHtml += '<span class="cy-detail-section-title">Score Breakdown</span>';
+        bodyHtml += '<svg class="jb-collapsible-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
+        bodyHtml += '</div>';
+        bodyHtml += '<div class="jb-collapsible-body" style="display: none;">';
         bodyHtml += '<div class="jb-score-grid">';
 
         var categories = [
@@ -314,7 +367,6 @@
           });
         });
 
-        // Bonuses/Penalties
         if (bd.bonuses && bd.bonuses.length > 0) {
           bodyHtml += '<div class="jb-score-modifiers"><span class="jb-mod-label jb-mod-bonus">Bonuses:</span> ' + bd.bonuses.map(function(b) { return '<span class="jb-mod-tag jb-mod-tag--bonus">' + escapeHtml(b) + '</span>'; }).join(' ') + '</div>';
         }
@@ -322,88 +374,71 @@
           bodyHtml += '<div class="jb-score-modifiers"><span class="jb-mod-label jb-mod-penalty">Penalties:</span> ' + bd.penalties.map(function(p) { return '<span class="jb-mod-tag jb-mod-tag--penalty">' + escapeHtml(p) + '</span>'; }).join(' ') + '</div>';
         }
 
-        bodyHtml += '</div></div>';
+        bodyHtml += '</div></div></div>';
       }
 
-      // ---- Summary ----
-      bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Summary</div>';
+      // ---- 6. Key Matches (collapsible, closed by default) ----
+      if (job.keyMatchesParsed && job.keyMatchesParsed.length > 0) {
+        bodyHtml += '<div class="cy-detail-section jb-collapsible">';
+        bodyHtml += '<div class="jb-collapsible-header" onclick="toggleCollapsible(this)">';
+        bodyHtml += '<span class="cy-detail-section-title">Key Matches</span>';
+        bodyHtml += '<svg class="jb-collapsible-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
+        bodyHtml += '</div>';
+        bodyHtml += '<div class="jb-collapsible-body" style="display: none;">';
+        bodyHtml += '<div class="cy-tags">';
+        job.keyMatchesParsed.forEach(function(match) {
+          bodyHtml += '<span class="cy-tag">' + escapeHtml(match) + '</span>';
+        });
+        bodyHtml += '</div></div></div>';
+      }
+
+      // ---- 7. Summary (collapsible, closed by default) ----
+      bodyHtml += '<div class="cy-detail-section jb-collapsible">';
+      bodyHtml += '<div class="jb-collapsible-header" onclick="toggleCollapsible(this)">';
+      bodyHtml += '<span class="cy-detail-section-title">Summary</span>';
+      bodyHtml += '<svg class="jb-collapsible-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
+      bodyHtml += '</div>';
+      bodyHtml += '<div class="jb-collapsible-body" style="display: none;">';
       bodyHtml += '<div class="cy-kv-grid">';
       bodyHtml += '<span class="cy-kv-label">Status</span><span class="cy-kv-value"><span class="cy-status ' + job.status + '">' + job.status + '</span></span>';
       bodyHtml += '<span class="cy-kv-label">Company</span><span class="cy-kv-value">' + escapeHtml(job.company) + '</span>';
       bodyHtml += '<span class="cy-kv-label">Location</span><span class="cy-kv-value">' + escapeHtml(job.location || '--') + '</span>';
       bodyHtml += '<span class="cy-kv-label">Posted</span><span class="cy-kv-value">' + escapeHtml(job.postedDate || '--') + '</span>';
-      bodyHtml += '</div></div>';
+      bodyHtml += '</div></div></div>';
 
-      // ---- Enrichment extras ----
-      if (job.enrichmentStatus === 'enriched') {
-        if (job.actionItemsParsed && job.actionItemsParsed.length > 0) {
-          bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Action Items</div>';
-          bodyHtml += '<ul class="cy-action-list">';
-          job.actionItemsParsed.forEach(function(item) {
-            bodyHtml += '<li>' + escapeHtml(item) + '</li>';
-          });
-          bodyHtml += '</ul></div>';
-        }
-
-        // Contacts
-        if ((job.contactPeopleParsed && job.contactPeopleParsed.length > 0) || job.postedBy) {
-          bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">People to Reach Out To</div>';
-          if (job.postedBy) {
-            bodyHtml += '<div class="cy-contact-person"><strong>Posted by:</strong>&nbsp;';
-            if (job.postedByProfile) bodyHtml += '<a href="' + escapeHtml(job.postedByProfile) + '" target="_blank">' + escapeHtml(job.postedBy) + '</a>';
-            else bodyHtml += escapeHtml(job.postedBy);
-            if (job.postedByTitle) bodyHtml += ' <span class="cy-hint">&mdash; ' + escapeHtml(job.postedByTitle) + '</span>';
-            bodyHtml += '</div>';
-          }
-          if (job.contactPeopleParsed) {
-            job.contactPeopleParsed.forEach(function(person) {
-              bodyHtml += '<div class="cy-contact-person">';
-              if (person.profileUrl) bodyHtml += '<a href="' + escapeHtml(person.profileUrl) + '" target="_blank">' + escapeHtml(person.name) + '</a>';
-              else bodyHtml += escapeHtml(person.name);
-              if (person.title) bodyHtml += ' <span class="cy-hint">&mdash; ' + escapeHtml(person.title) + '</span>';
-              bodyHtml += '</div>';
-            });
-          }
-          bodyHtml += '</div>';
-        }
-      }
-
-      // Match reason
+      // ---- 8. AI Match Reason (collapsible, closed by default) ----
       if (job.matchReason) {
-        bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">AI Match Reason</div>';
-        bodyHtml += '<p>' + escapeHtml(job.matchReason) + '</p></div>';
-      }
-
-      // Key matches
-      if (job.keyMatchesParsed && job.keyMatchesParsed.length > 0) {
-        bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Key Matches</div>';
-        bodyHtml += '<div class="cy-tags">';
-        job.keyMatchesParsed.forEach(function(match) {
-          bodyHtml += '<span class="cy-tag">' + escapeHtml(match) + '</span>';
-        });
+        bodyHtml += '<div class="cy-detail-section jb-collapsible">';
+        bodyHtml += '<div class="jb-collapsible-header" onclick="toggleCollapsible(this)">';
+        bodyHtml += '<span class="cy-detail-section-title">AI Match Reason</span>';
+        bodyHtml += '<svg class="jb-collapsible-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
+        bodyHtml += '</div>';
+        bodyHtml += '<div class="jb-collapsible-body" style="display: none;">';
+        bodyHtml += '<p>' + escapeHtml(job.matchReason) + '</p>';
         bodyHtml += '</div></div>';
       }
 
-      // Job detail chips
+      // ---- 9. Job Detail chips (collapsible, closed by default) ----
       if (job.seniorityLevel || job.employmentType || job.jobFunction || job.applicantCount) {
-        bodyHtml += '<div class="cy-detail-section"><div class="cy-detail-section-title">Job Details</div>';
+        bodyHtml += '<div class="cy-detail-section jb-collapsible">';
+        bodyHtml += '<div class="jb-collapsible-header" onclick="toggleCollapsible(this)">';
+        bodyHtml += '<span class="cy-detail-section-title">Job Details</span>';
+        bodyHtml += '<svg class="jb-collapsible-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>';
+        bodyHtml += '</div>';
+        bodyHtml += '<div class="jb-collapsible-body" style="display: none;">';
         bodyHtml += '<div class="cy-detail-chips">';
         if (job.seniorityLevel) bodyHtml += '<span class="cy-detail-chip">' + escapeHtml(job.seniorityLevel) + '</span>';
         if (job.employmentType) bodyHtml += '<span class="cy-detail-chip">' + escapeHtml(job.employmentType) + '</span>';
         if (job.jobFunction) bodyHtml += '<span class="cy-detail-chip">' + escapeHtml(job.jobFunction) + '</span>';
         if (job.applicantCount) bodyHtml += '<span class="cy-detail-chip">' + escapeHtml(String(job.applicantCount)) + '</span>';
-        bodyHtml += '</div></div>';
+        bodyHtml += '</div></div></div>';
       }
 
       document.getElementById('jb-detail-body').innerHTML = bodyHtml;
 
-      // ---- Notes form ----
-      var noteHtml = '<form method="POST" action="/add-note" class="cy-note-form">';
-      noteHtml += '<input type="hidden" name="id" value="' + job.id + '">';
-      noteHtml += '<textarea name="notes" placeholder="Add notes..." rows="2">' + escapeHtml(job.notes || '') + '</textarea>';
-      noteHtml += '<button type="submit" class="cy-btn cy-btn-sm cy-btn-accent">Save</button>';
-      noteHtml += '</form>';
-      document.getElementById('jb-detail-notes').innerHTML = noteHtml;
+      // Reset to Info tab and preload chat history
+      switchDetailTab('info');
+      loadChatHistory(id);
 
       // Scroll detail body to top
       document.getElementById('jb-detail-body').scrollTop = 0;
@@ -417,9 +452,154 @@
       document.getElementById('jb-detail-panel').classList.remove('jb-detail-panel--active');
       document.getElementById('jb-detail-empty').style.display = '';
       document.getElementById('jb-detail-content').style.display = 'none';
+      document.getElementById('jb-chat-messages').innerHTML = '';
+      switchDetailTab('info');
       var cards = document.querySelectorAll('.jb-card');
       cards.forEach(function(card) { card.classList.remove('jb-card--active'); });
     }
+
+    // ---- Collapsible toggle ----
+    function toggleCollapsible(headerEl) {
+      var body = headerEl.nextElementSibling;
+      var chevron = headerEl.querySelector('.jb-collapsible-chevron');
+      if (body.style.display === 'none') {
+        body.style.display = '';
+        chevron.classList.add('jb-collapsible-chevron--open');
+      } else {
+        body.style.display = 'none';
+        chevron.classList.remove('jb-collapsible-chevron--open');
+      }
+    }
+
+    // ---- Tab switching ----
+    function switchDetailTab(tab) {
+      var infoTab = document.getElementById('jb-tab-info');
+      var chatTab = document.getElementById('jb-tab-chat');
+      var body = document.getElementById('jb-detail-body');
+      var chat = document.getElementById('jb-chat');
+
+      if (tab === 'chat') {
+        body.style.display = 'none';
+        chat.style.display = 'flex';
+        infoTab.classList.remove('jb-tab--active');
+        chatTab.classList.add('jb-tab--active');
+        // Focus input and scroll to bottom
+        var input = document.getElementById('jb-chat-input');
+        if (input) input.focus();
+        var msgs = document.getElementById('jb-chat-messages');
+        if (msgs) msgs.scrollTop = msgs.scrollHeight;
+      } else {
+        body.style.display = '';
+        chat.style.display = 'none';
+        infoTab.classList.add('jb-tab--active');
+        chatTab.classList.remove('jb-tab--active');
+      }
+    }
+
+    // ---- Chat functions ----
+    function loadChatHistory(jobId) {
+      var messagesEl = document.getElementById('jb-chat-messages');
+      messagesEl.innerHTML = '';
+      fetch('/api/chat/' + jobId + '/history')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          if (data.messages && data.messages.length > 0) {
+            data.messages.forEach(function(msg) {
+              appendChatBubble(msg.role, msg.content);
+            });
+          }
+        })
+        .catch(function() {
+          // Silently fail — chat just starts empty
+        });
+    }
+
+    function sendChatMessage() {
+      var input = document.getElementById('jb-chat-input');
+      var sendBtn = document.getElementById('jb-chat-send');
+      var message = input.value.trim();
+      if (!message || !selectedJobId) return;
+
+      // Disable input while waiting
+      input.disabled = true;
+      sendBtn.disabled = true;
+
+      appendChatBubble('user', message);
+      input.value = '';
+      input.style.height = 'auto';
+      showTypingIndicator();
+
+      fetch('/api/chat/' + selectedJobId, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: message })
+      })
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+          removeTypingIndicator();
+          if (data.error) {
+            appendChatBubble('error', data.error);
+          } else {
+            appendChatBubble('assistant', data.reply);
+          }
+        })
+        .catch(function() {
+          removeTypingIndicator();
+          appendChatBubble('error', 'Failed to send message. Please try again.');
+        })
+        .finally(function() {
+          input.disabled = false;
+          sendBtn.disabled = false;
+          input.focus();
+        });
+    }
+
+    function appendChatBubble(role, content) {
+      var messagesEl = document.getElementById('jb-chat-messages');
+      var bubble = document.createElement('div');
+      bubble.className = 'jb-chat-bubble jb-chat-bubble--' + role;
+      bubble.textContent = content;
+      messagesEl.appendChild(bubble);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function showTypingIndicator() {
+      var messagesEl = document.getElementById('jb-chat-messages');
+      var typing = document.createElement('div');
+      typing.className = 'jb-chat-typing';
+      typing.id = 'jb-chat-typing';
+      typing.innerHTML = '<div class="jb-chat-typing-dot"></div><div class="jb-chat-typing-dot"></div><div class="jb-chat-typing-dot"></div>';
+      messagesEl.appendChild(typing);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+      var el = document.getElementById('jb-chat-typing');
+      if (el) el.remove();
+    }
+
+    function clearChat() {
+      if (!selectedJobId) return;
+      fetch('/api/chat/' + selectedJobId, { method: 'DELETE' })
+        .then(function() {
+          document.getElementById('jb-chat-messages').innerHTML = '';
+          document.getElementById('jb-chat-input').focus();
+        })
+        .catch(function() {});
+    }
+
+    function handleChatKeydown(event) {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendChatMessage();
+      }
+    }
+
+    // Auto-resize chat textarea
+    document.getElementById('jb-chat-input').addEventListener('input', function() {
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+    });
 
     // Keyboard navigation: arrow keys to move through job list, Enter to select
     document.addEventListener('keydown', function(e) {

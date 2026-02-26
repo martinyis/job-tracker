@@ -2801,11 +2801,236 @@ a:hover { color: var(--accent); }
   padding: var(--sp-6);
 }
 
-/* Notes form (pinned at bottom) */
-.jb-detail-notes {
+
+
+/* ================================================================
+   COLLAPSIBLE ACCORDIONS
+   ================================================================ */
+
+.jb-collapsible-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 0;
+}
+
+.jb-collapsible-header:hover .cy-detail-section-title {
+  color: var(--text-secondary);
+}
+
+.jb-collapsible-header .cy-detail-section-title {
+  margin-bottom: 0;
+}
+
+.jb-collapsible-chevron {
+  transition: transform var(--t-fast) var(--ease);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.jb-collapsible-chevron--open {
+  transform: rotate(180deg);
+}
+
+.jb-collapsible-body {
+  padding-top: var(--sp-3);
+}
+
+/* ================================================================
+   PROMINENT ACTION ITEMS
+   ================================================================ */
+
+.jb-action-items-prominent {
+  border-left: 3px solid var(--accent);
+  padding-left: var(--sp-4);
+  margin-bottom: var(--sp-5);
+}
+
+/* ================================================================
+   DETAIL PANEL TAB BAR
+   ================================================================ */
+
+.jb-tab-bar {
+  display: flex;
+  gap: 0;
+  padding: 0 var(--sp-6);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.jb-tab {
+  padding: var(--sp-2) var(--sp-4);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+  margin-bottom: -1px;
+}
+
+.jb-tab:hover {
+  color: var(--text-secondary);
+}
+
+.jb-tab--active {
+  color: var(--accent-text);
+  border-bottom-color: var(--accent);
+}
+
+
+/* ================================================================
+   CHAT INTERFACE
+   ================================================================ */
+
+.jb-chat {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.jb-chat-messages {
+  flex: 1;
+  overflow-y: auto;
   padding: var(--sp-4) var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.jb-chat-bubble {
+  max-width: 80%;
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-md);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.jb-chat-bubble--user {
+  align-self: flex-end;
+  background: var(--accent-subtle);
+  color: var(--text-primary);
+  border: 1px solid var(--accent-border);
+}
+
+.jb-chat-bubble--assistant {
+  align-self: flex-start;
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+}
+
+.jb-chat-bubble--error {
+  align-self: flex-start;
+  background: var(--red-dim);
+  color: var(--red-text);
+  border: 1px solid var(--red-border);
+  font-size: 12px;
+}
+
+.jb-chat-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-6);
   border-top: 1px solid var(--border-subtle);
   flex-shrink: 0;
+}
+
+.jb-chat-input {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  padding: var(--sp-2) var(--sp-3);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  resize: none;
+  line-height: 1.5;
+  min-height: 36px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.jb-chat-input:focus {
+  border-color: var(--accent-border);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-subtle);
+}
+
+.jb-chat-clear-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: none;
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.jb-chat-clear-btn:hover {
+  color: var(--red-text);
+  border-color: var(--red-border);
+}
+
+.jb-chat-send {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  border: none;
+  color: var(--bg-body);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background var(--t-fast) var(--ease);
+}
+.jb-chat-send:hover {
+  background: var(--accent-hover);
+}
+.jb-chat-send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.jb-chat-typing {
+  align-self: flex-start;
+  padding: var(--sp-2) var(--sp-3);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.jb-chat-typing-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: chatTypingBounce 1.4s infinite ease-in-out;
+}
+.jb-chat-typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.jb-chat-typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes chatTypingBounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
 }
 
 
@@ -2931,10 +3156,6 @@ a:hover { color: var(--accent); }
 
   .jb-detail-body {
     padding: var(--sp-5);
-  }
-
-  .jb-detail-notes {
-    padding: var(--sp-3) var(--sp-5);
   }
 
   .jb-action-row {
