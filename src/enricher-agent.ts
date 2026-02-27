@@ -14,7 +14,7 @@ import {
   markJobEnrichmentFailed,
 } from './database/enrichment-queries';
 import { getProfileForEnrichmentAI } from './database/profile-queries';
-import { DetailScraper, SessionExpiredError } from './scraper/detail-scraper';
+import { DetailScraper, LoginBlockedError } from './scraper/detail-scraper';
 import { analyzeEnrichedJob } from './ai/job-enricher';
 import {
   checkDealbreakers,
@@ -112,13 +112,9 @@ async function enrichmentLoop(): Promise<void> {
           await detailScraper.launch();
           jobsProcessedSinceBrowserStart = 0;
         } catch (error) {
-          if (error instanceof SessionExpiredError) {
-            logger.error(`Enricher: ${error.message}`);
-          } else {
-            logger.error('Enricher: failed to launch browser', {
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
+          logger.error('Enricher: failed to launch browser', {
+            error: error instanceof Error ? error.message : String(error),
+          });
           await markEnricherError();
           detailScraper = null;
           await sleep(60_000);
@@ -147,24 +143,22 @@ async function enrichmentLoop(): Promise<void> {
 
       await markEnricherProcessing();
 
-      // Step 1: Scrape the detail page
+      // Step 1: Scrape the detail page (unauthenticated, with retries)
       let jobDetail;
       try {
         jobDetail = await detailScraper!.scrapeJobDetail(job.linkedinId);
       } catch (error) {
-        if (error instanceof SessionExpiredError) {
-          logger.error('Enricher: session expired during scraping', {
+        if (error instanceof LoginBlockedError) {
+          logger.warn('Enricher: job blocked by LinkedIn login wall after retries', {
             linkedinId: job.linkedinId,
+            error: error.message,
           });
-          await detailScraper!.close();
-          detailScraper = null;
-          await markEnricherError();
-          continue;
+        } else {
+          logger.error('Enricher: failed to scrape job detail', {
+            linkedinId: job.linkedinId,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
-        logger.error('Enricher: failed to scrape job detail', {
-          linkedinId: job.linkedinId,
-          error: error instanceof Error ? error.message : String(error),
-        });
         await markJobEnrichmentFailed(job.id);
         await markEnricherError();
         // Continue to next job
@@ -286,8 +280,8 @@ async function enrichmentLoop(): Promise<void> {
 
       await markEnricherSuccess();
 
-      // Send Telegram notification for urgent jobs
-      if (computedPriority === 'urgent' && !analysis.aiFailed && isTelegramConfigured()) {
+      // Send Telegram notification for high-scoring jobs (score >= 85)
+      if (computedScore >= 85 && !analysis.aiFailed && isTelegramConfigured()) {
         await sendUrgentJobNotification(
           {
             title: job.title,
@@ -315,7 +309,7 @@ async function enrichmentLoop(): Promise<void> {
         matchScore: computedScore,
         dealbreaker: triggeredDealbreaker || 'none',
         aiFailed: analysis.aiFailed ?? false,
-        notified: computedPriority === 'urgent' && !analysis.aiFailed && isTelegramConfigured(),
+        notified: computedScore >= 85 && !analysis.aiFailed && isTelegramConfigured(),
       });
 
       // Anti-detection delay between jobs

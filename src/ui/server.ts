@@ -8,6 +8,7 @@ import { profileRouter } from './profile-routes';
 import { chatRouter } from './chat-routes';
 import { resetEnricherStateOnStartup } from '../database/enrichment-queries';
 import { startCleanupInterval } from '../chat/chat-store';
+import { startRejectedJobCleanup } from '../background/rejected-cleanup';
 
 /**
  * Creates and configures the Express UI server.
@@ -61,7 +62,10 @@ export async function startServer(): Promise<void> {
   // Start chat session cleanup (evicts idle sessions every 5 minutes)
   startCleanupInterval();
 
-  app.listen(config.ui.port, () => {
+  // Start background job to delete rejected jobs every 2 hours
+  startRejectedJobCleanup();
+
+  app.listen(config.ui.port, '0.0.0.0', () => {
     logger.info(`UI server running at http://localhost:${config.ui.port}`);
   });
 }
