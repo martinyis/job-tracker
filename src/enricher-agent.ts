@@ -25,6 +25,17 @@ import {
 import { randomDelay } from './scraper/anti-detection';
 import { isTelegramConfigured, sendUrgentJobNotification } from './notifications/telegram';
 
+/**
+ * Parses a number from LinkedIn's applicant count string.
+ * Examples: "Be among the first 25 applicants", "Over 200 applicants", "147 applicants"
+ * Returns null if no number can be extracted.
+ */
+function parseApplicantCount(text: string): number | null {
+  if (!text) return null;
+  const match = text.match(/(\d+)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
 let shutdownRequested = false;
 let detailScraper: DetailScraper | null = null;
 
@@ -162,6 +173,47 @@ async function enrichmentLoop(): Promise<void> {
         await markJobEnrichmentFailed(job.id);
         await markEnricherError();
         // Continue to next job
+        await sleep(randomDelay(BETWEEN_JOBS_DELAY.min, BETWEEN_JOBS_DELAY.max));
+        continue;
+      }
+
+      // Step 1.5: Applicant count dealbreaker — reject jobs with 100+ applicants
+      // before spending an AI call on them
+      const applicantCountNum = parseApplicantCount(jobDetail.applicantCount);
+      if (applicantCountNum !== null && applicantCountNum >= 100) {
+        logger.info('Job rejected: too many applicants', {
+          id: job.id,
+          title: job.title,
+          company: job.company,
+          applicantCount: jobDetail.applicantCount,
+          parsed: applicantCountNum,
+        });
+
+        await updateJobEnrichment(job.id, {
+          description: jobDetail.description,
+          priority: 'low',
+          priorityReason: `Dealbreaker: ${applicantCountNum}+ applicants`,
+          matchScore: 0,
+          matchReason: '',
+          keyMatches: [],
+          actionItems: [],
+          redFlags: [`${applicantCountNum}+ applicants`],
+          companyInfo: jobDetail.companyInfo,
+          applicantCount: jobDetail.applicantCount,
+          seniorityLevel: jobDetail.seniorityLevel,
+          employmentType: jobDetail.employmentType,
+          jobFunction: jobDetail.jobFunction,
+          postedBy: jobDetail.postedBy,
+          postedByTitle: jobDetail.postedByTitle,
+          postedByProfile: jobDetail.postedByProfile,
+          contactPeople: jobDetail.contactPeople,
+          scoreBreakdown: { dealbreaker: 'tooManyApplicants', applicantCount: applicantCountNum },
+          dealbreaker: 'tooManyApplicants',
+          status: 'rejected',
+        });
+
+        await markEnricherSuccess();
+        jobsProcessedSinceBrowserStart++;
         await sleep(randomDelay(BETWEEN_JOBS_DELAY.min, BETWEEN_JOBS_DELAY.max));
         continue;
       }

@@ -120,7 +120,7 @@
                     <div class="jb-card-meta">
                       <span class="jb-card-date">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                        <%= job.postedDate || 'Unknown' %>
+                        <span class="jb-timeago" data-date="<%= job.createdAt ? new Date(job.createdAt).toISOString() : '' %>"></span>
                       </span>
                       <% if (job.employmentType) { %>
                         <span class="jb-card-type"><%= job.employmentType %></span>
@@ -301,7 +301,7 @@
         html += '<div class="jb-card-title">' + escapeHtml(job.title) + '</div>';
         html += '<div class="jb-card-company">' + escapeHtml(job.company) + (job.location ? ' &middot; ' + escapeHtml(job.location) : '') + '</div>';
         html += '<div class="jb-card-meta">';
-        html += '<span class="jb-card-date"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + escapeHtml(job.postedDate || 'Unknown') + '</span>';
+        html += '<span class="jb-card-date"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + escapeHtml(timeAgo(job.createdAt)) + '</span>';
         if (job.employmentType) {
           html += '<span class="jb-card-type">' + escapeHtml(job.employmentType) + '</span>';
         }
@@ -316,6 +316,23 @@
       var div = document.createElement('div');
       div.appendChild(document.createTextNode(String(str)));
       return div.innerHTML;
+    }
+
+    function timeAgo(dateStr) {
+      if (!dateStr) return 'Unknown';
+      var date = new Date(dateStr);
+      var now = new Date();
+      var diffMs = now - date;
+      var diffSec = Math.floor(diffMs / 1000);
+      var diffMin = Math.floor(diffSec / 60);
+      var diffHr = Math.floor(diffMin / 60);
+      var diffDay = Math.floor(diffHr / 24);
+      if (diffMin < 1) return 'Just now';
+      if (diffMin < 60) return diffMin + 'm ago';
+      if (diffHr < 24) return diffHr + 'h ago';
+      if (diffDay === 1) return '1d ago';
+      if (diffDay < 30) return diffDay + 'd ago';
+      return Math.floor(diffDay / 30) + 'mo ago';
     }
 
     /**
@@ -346,7 +363,7 @@
       // Subtitle (company + location + date)
       var subtitle = escapeHtml(job.company);
       if (job.location) subtitle += ' &middot; ' + escapeHtml(job.location);
-      if (job.postedDate) subtitle += ' &middot; ' + escapeHtml(job.postedDate);
+      subtitle += ' &middot; ' + escapeHtml(timeAgo(job.createdAt));
       document.getElementById('jb-detail-subtitle').innerHTML = subtitle;
 
       // ---- Action buttons ----
@@ -546,7 +563,7 @@
       bodyHtml += '<span class="cy-kv-label">Status</span><span class="cy-kv-value"><span class="cy-status ' + job.status + '">' + job.status + '</span></span>';
       bodyHtml += '<span class="cy-kv-label">Company</span><span class="cy-kv-value">' + escapeHtml(job.company) + '</span>';
       bodyHtml += '<span class="cy-kv-label">Location</span><span class="cy-kv-value">' + escapeHtml(job.location || '--') + '</span>';
-      bodyHtml += '<span class="cy-kv-label">Posted</span><span class="cy-kv-value">' + escapeHtml(job.postedDate || '--') + '</span>';
+      bodyHtml += '<span class="cy-kv-label">Added</span><span class="cy-kv-value">' + escapeHtml(timeAgo(job.createdAt)) + '</span>';
       bodyHtml += '</div></div></div>';
 
       // ---- 8. AI Match Reason (collapsible, closed by default) ----
@@ -769,6 +786,14 @@
         deselectJob();
       }
     });
+
+    // Hydrate server-rendered timeago spans
+    (function() {
+      document.querySelectorAll('.jb-timeago').forEach(function(el) {
+        var d = el.getAttribute('data-date');
+        el.textContent = d ? timeAgo(d) : 'Unknown';
+      });
+    })();
 
     // Auto-select first job if there are any
     (function() {
