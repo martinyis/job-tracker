@@ -11,6 +11,7 @@ export interface AppSettingsParsed {
   headless: boolean;
   maxMinutesAgo: number;
   uiPort: number;
+  dailyApplicationGoal: number;
   updatedAt: Date;
 }
 
@@ -22,6 +23,7 @@ export interface AppSettingsUpdate {
   headless?: boolean;
   maxMinutesAgo?: number;
   uiPort?: number;
+  dailyApplicationGoal?: number;
 }
 
 /**
@@ -59,6 +61,7 @@ export async function updateSettings(data: AppSettingsUpdate): Promise<AppSettin
   if (data.headless !== undefined) dbData.headless = data.headless;
   if (data.maxMinutesAgo !== undefined) dbData.maxMinutesAgo = data.maxMinutesAgo;
   if (data.uiPort !== undefined) dbData.uiPort = data.uiPort;
+  if (data.dailyApplicationGoal !== undefined) dbData.dailyApplicationGoal = data.dailyApplicationGoal;
 
   const settings = await prisma.appSettings.upsert({
     where: { id: 'singleton' },

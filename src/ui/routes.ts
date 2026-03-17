@@ -8,6 +8,12 @@ import {
   updateJobNotes,
   getStats,
   getScraperState,
+  getAppliedPerDay,
+  getCreatedPerDay,
+  getRejectedPerDay,
+  getTodayAppliedCount,
+  getWeeklyAppliedCount,
+  getAverageDailyApplied,
   JobStatus,
 } from '../database/queries';
 import { getEnrichmentQueueSize, getJobForTestNotification } from '../database/enrichment-queries';
@@ -224,6 +230,112 @@ router.get('/job/:id', async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : String(error),
     });
     res.status(500).json({ error: 'Failed to fetch job' });
+  }
+});
+
+// ─── Analytics ─────────────────────────────────────────
+
+router.get('/analytics', async (req: Request, res: Response) => {
+  try {
+    const days = Math.min(Number(req.query.days) || 30, 90);
+
+    const [
+      appliedPerDay,
+      createdPerDay,
+      rejectedPerDay,
+      todayApplied,
+      weeklyApplied,
+      averageDailyApplied,
+      stats,
+      settings,
+    ] = await Promise.all([
+      getAppliedPerDay(days),
+      getCreatedPerDay(days),
+      getRejectedPerDay(days),
+      getTodayAppliedCount(),
+      getWeeklyAppliedCount(),
+      getAverageDailyApplied(days),
+      getStats(),
+      getOrCreateSettings(),
+    ]);
+
+    res.render('analytics', {
+      appliedPerDay: JSON.stringify(appliedPerDay),
+      createdPerDay: JSON.stringify(createdPerDay),
+      rejectedPerDay: JSON.stringify(rejectedPerDay),
+      todayApplied,
+      weeklyApplied,
+      averageDailyApplied,
+      dailyGoal: settings.dailyApplicationGoal,
+      stats,
+      days,
+    });
+  } catch (error) {
+    logger.error('Error rendering analytics page', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+router.get('/analytics/data', async (req: Request, res: Response) => {
+  try {
+    const days = Math.min(Number(req.query.days) || 30, 90);
+
+    const [
+      appliedPerDay,
+      createdPerDay,
+      rejectedPerDay,
+      todayApplied,
+      weeklyApplied,
+      averageDailyApplied,
+      stats,
+      settings,
+    ] = await Promise.all([
+      getAppliedPerDay(days),
+      getCreatedPerDay(days),
+      getRejectedPerDay(days),
+      getTodayAppliedCount(),
+      getWeeklyAppliedCount(),
+      getAverageDailyApplied(days),
+      getStats(),
+      getOrCreateSettings(),
+    ]);
+
+    res.json({
+      appliedPerDay,
+      createdPerDay,
+      rejectedPerDay,
+      todayApplied,
+      weeklyApplied,
+      averageDailyApplied,
+      dailyGoal: settings.dailyApplicationGoal,
+      stats,
+    });
+  } catch (error) {
+    logger.error('Error fetching analytics data', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: 'Failed to fetch analytics data' });
+  }
+});
+
+router.post('/analytics/goal', async (req: Request, res: Response) => {
+  try {
+    const goal = parseInt(req.body.dailyGoal, 10);
+    if (isNaN(goal) || goal < 1 || goal > 100) {
+      res.status(400).json({ error: 'Goal must be between 1 and 100' });
+      return;
+    }
+
+    await updateSettings({ dailyApplicationGoal: goal });
+    await reloadConfig();
+    res.redirect('/analytics?saved=1');
+  } catch (error) {
+    logger.error('Error updating daily goal', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: 'Failed to update daily goal' });
   }
 });
 

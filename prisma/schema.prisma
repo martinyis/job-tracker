@@ -50,6 +50,10 @@ model Job {
   postedByProfile   String   @default("")           // poster LinkedIn profile URL
   contactPeople     String   @default("[]")         // JSON array of {name, title, profileUrl}
 
+  // Status timestamps (for analytics)
+  appliedAt   DateTime?
+  rejectedAt  DateTime?
+
   // Metadata
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -58,6 +62,8 @@ model Job {
   @@index([createdAt])
   @@index([enrichmentStatus])
   @@index([priority])
+  @@index([appliedAt])
+  @@index([rejectedAt])
 }
 
 model ScraperState {
@@ -222,6 +228,9 @@ model AppSettings {
 
   // UI
   uiPort Int @default(3000)
+
+  // Analytics
+  dailyApplicationGoal Int @default(10)
 
   updatedAt DateTime @updatedAt
 }

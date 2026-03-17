@@ -144,6 +144,7 @@ export async function updateJobEnrichment(id: string, data: EnrichmentData) {
       scoreBreakdown: JSON.stringify(data.scoreBreakdown),
       dealbreaker: data.dealbreaker,
       ...(data.status ? { status: data.status } : {}),
+      ...(data.status === 'rejected' ? { rejectedAt: new Date() } : {}),
       enrichmentStatus: 'enriched',
       enrichedAt: new Date(),
     },

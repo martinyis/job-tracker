@@ -65,9 +65,15 @@ export async function getJobById(id: string) {
 }
 
 export async function updateJobStatus(id: string, status: JobStatus) {
+  const data: Record<string, unknown> = { status };
+
+  // Track when status changes for analytics
+  data.appliedAt = status === 'applied' ? new Date() : null;
+  data.rejectedAt = status === 'rejected' ? new Date() : null;
+
   return prisma.job.update({
     where: { id },
-    data: { status },
+    data,
   });
 }
 
@@ -182,4 +188,77 @@ export async function clearScraperPid() {
     update: { pid: null, isRunning: false },
     create: { id: 'singleton' },
   });
+}
+
+// ─── Analytics Queries ────────────────────────────────────
+
+export interface DailyCount {
+  date: string; // "YYYY-MM-DD"
+  count: number;
+}
+
+// Note: Prisma stores DateTime as Unix milliseconds in SQLite.
+// We must use `column / 1000, 'unixepoch'` for SQLite date functions.
+
+export async function getAppliedPerDay(days: number = 30): Promise<DailyCount[]> {
+  const results = await prisma.$queryRawUnsafe<Array<{ date: string; count: bigint }>>(
+    `SELECT date(appliedAt / 1000, 'unixepoch') as date, COUNT(*) as count
+     FROM Job
+     WHERE appliedAt IS NOT NULL
+       AND date(appliedAt / 1000, 'unixepoch') >= date('now', '-${days} days')
+     GROUP BY date(appliedAt / 1000, 'unixepoch')
+     ORDER BY date ASC`
+  );
+  return results.map((r) => ({ date: r.date, count: Number(r.count) }));
+}
+
+export async function getCreatedPerDay(days: number = 30): Promise<DailyCount[]> {
+  const results = await prisma.$queryRawUnsafe<Array<{ date: string; count: bigint }>>(
+    `SELECT date(createdAt / 1000, 'unixepoch') as date, COUNT(*) as count
+     FROM Job
+     WHERE date(createdAt / 1000, 'unixepoch') >= date('now', '-${days} days')
+     GROUP BY date(createdAt / 1000, 'unixepoch')
+     ORDER BY date ASC`
+  );
+  return results.map((r) => ({ date: r.date, count: Number(r.count) }));
+}
+
+export async function getRejectedPerDay(days: number = 30): Promise<DailyCount[]> {
+  const results = await prisma.$queryRawUnsafe<Array<{ date: string; count: bigint }>>(
+    `SELECT date(rejectedAt / 1000, 'unixepoch') as date, COUNT(*) as count
+     FROM Job
+     WHERE rejectedAt IS NOT NULL
+       AND date(rejectedAt / 1000, 'unixepoch') >= date('now', '-${days} days')
+     GROUP BY date(rejectedAt / 1000, 'unixepoch')
+     ORDER BY date ASC`
+  );
+  return results.map((r) => ({ date: r.date, count: Number(r.count) }));
+}
+
+export async function getTodayAppliedCount(): Promise<number> {
+  const results = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+    `SELECT COUNT(*) as count FROM Job
+     WHERE appliedAt IS NOT NULL
+       AND date(appliedAt / 1000, 'unixepoch') = date('now')`
+  );
+  return Number(results[0]?.count ?? 0);
+}
+
+export async function getWeeklyAppliedCount(): Promise<number> {
+  const results = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+    `SELECT COUNT(*) as count FROM Job
+     WHERE appliedAt IS NOT NULL
+       AND date(appliedAt / 1000, 'unixepoch') >= date('now', 'weekday 0', '-6 days')`
+  );
+  return Number(results[0]?.count ?? 0);
+}
+
+export async function getAverageDailyApplied(days: number = 30): Promise<number> {
+  const results = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+    `SELECT COUNT(*) as count FROM Job
+     WHERE appliedAt IS NOT NULL
+       AND date(appliedAt / 1000, 'unixepoch') >= date('now', '-${days} days')`
+  );
+  const total = Number(results[0]?.count ?? 0);
+  return Math.round((total / days) * 10) / 10;
 }

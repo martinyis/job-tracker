@@ -24,7 +24,7 @@ async function rejectSpamCompanies(): Promise<void> {
 
     const result = await prisma.job.updateMany({
       where: { company: { in: spamCompanies }, status: 'new' },
-      data: { status: 'rejected' },
+      data: { status: 'rejected', rejectedAt: new Date() },
     });
 
     logger.info(

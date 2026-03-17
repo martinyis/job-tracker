@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <%- include('partials/head') %>
+  <title>Analytics - Job Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="cy-app">
+    <%- include('partials/sidebar', { activePage: 'analytics' }) %>
+
+    <main class="cy-main">
+      <div class="cy-page">
+
+        <!-- Page Header -->
+        <div class="cy-page-header">
+          <h1 class="cy-page-title">// analytics</h1>
+          <div class="cy-page-header-actions">
+            <select id="period-select" class="an-period-select" onchange="changePeriod(this.value)">
+              <option value="7" <%= days === 7 ? 'selected' : '' %>>Last 7 days</option>
+              <option value="14" <%= days === 14 ? 'selected' : '' %>>Last 14 days</option>
+              <option value="30" <%= days === 30 ? 'selected' : '' %>>Last 30 days</option>
+              <option value="60" <%= days === 60 ? 'selected' : '' %>>Last 60 days</option>
+              <option value="90" <%= days === 90 ? 'selected' : '' %>>Last 90 days</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Daily Goal + Summary -->
+        <%
+          var goalPercent = dailyGoal > 0 ? Math.min(Math.round((todayApplied / dailyGoal) * 100), 100) : 0;
+          var goalMet = todayApplied >= dailyGoal;
+          var circumference = 2 * Math.PI * 52;
+          var dashLen = Math.round(circumference * goalPercent / 100);
+        %>
+        <div class="an-goal-section">
+          <div class="an-goal-card">
+            <div class="an-goal-ring-wrap">
+              <svg class="an-goal-ring" viewBox="0 0 120 120">
+                <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border-subtle)" stroke-width="8"/>
+                <circle cx="60" cy="60" r="52"
+                  fill="none"
+                  stroke="<%= goalMet ? 'var(--green)' : 'var(--accent)' %>"
+                  stroke-width="8"
+                  stroke-linecap="round"
+                  stroke-dasharray="<%= dashLen %> <%= Math.round(circumference) %>"
+                  transform="rotate(-90 60 60)"
+                  style="transition: stroke-dasharray 0.6s ease;"
+                />
+              </svg>
+              <div class="an-goal-ring-text">
+                <span class="an-goal-ring-value"><%= todayApplied %></span>
+                <span class="an-goal-ring-label">/ <%= dailyGoal %></span>
+              </div>
+            </div>
+            <div class="an-goal-info">
+              <h2>Daily Goal</h2>
+              <p class="an-goal-status <%= goalMet ? 'met' : '' %>">
+                <% if (goalMet) { %>
+                  Goal reached! Keep going.
+                <% } else { %>
+                  <%= dailyGoal - todayApplied %> more application<%= (dailyGoal - todayApplied) !== 1 ? 's' : '' %> to hit your goal
+                <% } %>
+              </p>
+              <form method="POST" action="/analytics/goal" class="an-goal-form">
+                <label class="an-goal-edit-label">Daily target:</label>
+                <input type="number" name="dailyGoal" value="<%= dailyGoal %>"
+                       min="1" max="100" class="an-goal-input">
+                <button type="submit" class="an-goal-save-btn">Save</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="an-summary-cards">
+            <div class="cy-stat-card">
+              <div class="cy-stat-info">
+                <span class="cy-stat-label">This Week</span>
+                <span class="cy-stat-value accent"><%= weeklyApplied %></span>
+                <span class="cy-stat-compare">applications sent</span>
+              </div>
+            </div>
+            <div class="cy-stat-card">
+              <div class="cy-stat-info">
+                <span class="cy-stat-label">Daily Average</span>
+                <span class="cy-stat-value blue"><%= averageDailyApplied %></span>
+                <span class="cy-stat-compare">over last <%= days %> days</span>
+              </div>
+            </div>
+            <div class="cy-stat-card">
+              <div class="cy-stat-info">
+                <span class="cy-stat-label">Total Applied</span>
+                <span class="cy-stat-value green"><%= stats.statusCounts.applied || 0 %></span>
+                <span class="cy-stat-compare">all time</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row 1: Applied + Scraped -->
+        <div class="an-charts-row">
+          <div class="an-chart-card">
+            <h3>Applications Per Day</h3>
+            <div class="an-chart-wrap">
+              <canvas id="appliedChart"></canvas>
+            </div>
+          </div>
+          <div class="an-chart-card">
+            <h3>Jobs Scraped Per Day</h3>
+            <div class="an-chart-wrap">
+              <canvas id="createdChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Charts Row 2: Rejected + Status Breakdown -->
+        <div class="an-charts-row">
+          <div class="an-chart-card">
+            <h3>Jobs Rejected Per Day</h3>
+            <div class="an-chart-wrap">
+              <canvas id="rejectedChart"></canvas>
+            </div>
+          </div>
+          <div class="an-chart-card">
+            <h3>Status Breakdown</h3>
+            <div class="an-chart-wrap an-chart-wrap--donut">
+              <canvas id="statusChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+<script>
+// ─── Data from server ───────────────────────────────────
+var appliedData = <%- appliedPerDay %>;
+var createdData = <%- createdPerDay %>;
+var rejectedData = <%- rejectedPerDay %>;
+var statusCounts = <%- JSON.stringify(stats.statusCounts) %>;
+var currentDays = <%= days %>;
+
+// ─── Chart.js Global Config ─────────────────────────────
+Chart.defaults.color = '#9e9ea8';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+Chart.defaults.font.family = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif";
+Chart.defaults.font.size = 11;
+
+// ─── Fill missing dates ─────────────────────────────────
+function fillDates(data, days) {
+  var map = {};
+  data.forEach(function(d) { map[d.date] = d.count; });
+
+  var labels = [];
+  var values = [];
+  var now = new Date();
+  for (var i = days - 1; i >= 0; i--) {
+    var d = new Date(now);
+    d.setDate(d.getDate() - i);
+    var key = d.toISOString().slice(0, 10);
+    labels.push(key);
+    values.push(map[key] || 0);
+  }
+  return { labels: labels, values: values };
+}
+
+// ─── Bar Chart Factory ──────────────────────────────────
+function createBarChart(canvasId, data, color, label) {
+  var filled = fillDates(data, currentDays);
+  var ctx = document.getElementById(canvasId).getContext('2d');
+  return new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: filled.labels.map(function(d) {
+        return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }),
+      datasets: [{
+        label: label,
+        data: filled.values,
+        backgroundColor: color + '40',
+        borderColor: color,
+        borderWidth: 1,
+        borderRadius: 3,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1c1c20',
+          titleColor: '#f0f0f2',
+          bodyColor: '#9e9ea8',
+          borderColor: 'rgba(255,255,255,0.09)',
+          borderWidth: 1,
+          cornerRadius: 6,
+          padding: 10,
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: {
+            maxRotation: 45,
+            maxTicksLimit: currentDays <= 14 ? currentDays : 15,
+          }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0 },
+          grid: { color: 'rgba(255,255,255,0.04)' }
+        }
+      }
+    }
+  });
+}
+
+// ─── Create Charts ──────────────────────────────────────
+createBarChart('appliedChart', appliedData, '#22c55e', 'Applied');
+createBarChart('createdChart', createdData, '#f59e0b', 'Scraped');
+createBarChart('rejectedChart', rejectedData, '#ef4444', 'Rejected');
+
+// ─── Status Donut ───────────────────────────────────────
+(function() {
+  var labels = ['New', 'Accepted', 'Applied', 'Rejected'];
+  var keys = ['new', 'accepted', 'applied', 'rejected'];
+  var colors = ['#3b82f6', '#f59e0b', '#22c55e', '#ef4444'];
+  var values = keys.map(function(k) { return statusCounts[k] || 0; });
+
+  var ctx = document.getElementById('statusChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.map(function(c) { return c + '55'; }),
+        borderColor: colors,
+        borderWidth: 1.5,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            padding: 16,
+            usePointStyle: true,
+            pointStyleWidth: 8,
+          }
+        },
+        tooltip: {
+          backgroundColor: '#1c1c20',
+          titleColor: '#f0f0f2',
+          bodyColor: '#9e9ea8',
+          borderColor: 'rgba(255,255,255,0.09)',
+          borderWidth: 1,
+          cornerRadius: 6,
+          padding: 10,
+        }
+      }
+    }
+  });
+})();
+
+// ─── Period Selector ────────────────────────────────────
+function changePeriod(days) {
+  window.location.href = '/analytics?days=' + days;
+}
+</script>
+
+</body>
+</html>
