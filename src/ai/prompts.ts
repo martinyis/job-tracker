@@ -114,7 +114,9 @@ RULES -- follow these exactly:
    - Niche platform administration (Salesforce Admin, ServiceNow Admin, SAP Consultant)
    - Research-only roles (Research Scientist) unless combined with engineering
 4. REJECT titles that are vague or clearly non-development (Programmer Analyst, Product Developer with no tech context, Specialist, Coordinator)
-5. ACCEPT standard software development roles: Software Engineer, Developer, Frontend/Backend/Full Stack Engineer, Mobile Developer/Engineer, Web Developer, AI/ML Engineer (if building products), Platform Engineer (if building software platforms), DevOps Engineer (if it involves building tooling/infrastructure code)
+5. ACCEPT standard software development roles: Software Engineer, Developer, Frontend/Backend/Full Stack Engineer, Mobile Developer/Engineer, Mobile Software Engineer, React Native Developer, Full Stack Mobile Developer, Web Developer, AI/ML Engineer (if building products), Platform Engineer (if building software platforms), DevOps Engineer (if it involves building tooling/infrastructure code)
+6. IMPORTANT: Mobile development roles (React Native, Mobile Developer, Mobile Engineer, Full Stack Mobile) are HIGH PRIORITY for this candidate — always ACCEPT them unless they fail seniority or other hard rules.
+7. REJECT native-only mobile roles: iOS Developer, Android Developer, Swift Developer, Kotlin Developer — the candidate works with React Native/cross-platform, not native iOS/Android.
 ${jobSearchSection}
 ${senioritySection}
 ${techSection}
@@ -268,7 +270,7 @@ Score these 10 dimensions using the exact rubric below.
 
 1. techStack: 0 = zero overlap with candidate's skills. 5 = some overlap (1-2 technologies match). 8 = strong overlap (3+ core technologies). 10 = exact stack match (React/Next.js/Node/Python/FastAPI all listed).
 2. roleType: 0 = purely advisory/consulting/maintaining legacy. 5 = mixed building and maintenance. 8 = primarily building new features/products. 10 = greenfield product development, building from scratch.
-3. aiRelevance: 0 = no AI/ML mention at all. 3 = vague "we use AI" without specifics. 6 = AI is part of the product but not the core job. 8 = building AI features, LLM integration, agents. 10 = core AI product role (RAG, prompt engineering, AI agents, LLM applications).
+3. aiRelevance: Score how well this role aligns with the candidate's PRIORITY DOMAINS: AI/ML and Mobile Development (React Native/cross-platform) are equally valued. 0 = no overlap with either domain. 3 = vague mention without specifics. 6 = domain is part of the product but not the core job. 8 = building AI features/LLM integration/agents OR building cross-platform mobile apps (React Native, Expo, mobile-first products). 10 = core AI product role (RAG, prompt engineering, AI agents, LLM apps) OR core React Native/cross-platform mobile role. NOTE: Native-only iOS (Swift/ObjC) or Android (Kotlin/Java) roles should score LOWER (3-4) since the candidate specializes in React Native, not native development.
 4. fullStackBreadth: 0 = extremely narrow scope. 5 = frontend OR backend only. 8 = frontend + backend. 10 = true full-stack (frontend + backend + infrastructure/deployment).
 5. productOwnership: 0 = "implement tickets from Jira." 5 = standard team contributor. 8 = "own features end-to-end." 10 = "ship the product, work directly with founders, wear many hats."
 6. companyStage: 0 = large enterprise (5000+ employees). 3 = mid-to-large (1000-5000). 5 = mid-size (200-1000). 7 = growth-stage startup (50-200). 9 = early-stage (<50). 10 = founding team, first engineer, recently funded, <20 people.
