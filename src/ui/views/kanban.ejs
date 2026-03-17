@@ -36,6 +36,39 @@
           <% }); %>
         </div>
 
+        <!-- Sort & Filter Toolbar -->
+        <div class="jb-toolbar">
+          <div class="jb-toolbar-left">
+            <div class="jb-toolbar-group">
+              <label class="jb-toolbar-label">Sort</label>
+              <select id="jb-sort" class="jb-toolbar-select" onchange="applyFilters()">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="score-desc">Score: High to Low</option>
+                <option value="score-asc">Score: Low to High</option>
+                <option value="priority">Priority</option>
+                <option value="company">Company A-Z</option>
+              </select>
+            </div>
+            <div class="jb-toolbar-group">
+              <label class="jb-toolbar-label">Show</label>
+              <select id="jb-filter-extra" class="jb-toolbar-select" onchange="applyFilters()">
+                <option value="all">All Jobs</option>
+                <option value="today">Added Today</option>
+                <option value="urgent">Urgent Only</option>
+                <option value="high+">High Priority+</option>
+                <option value="enriched">Enriched Only</option>
+                <option value="pending">Pending Enrichment</option>
+                <option value="dealbreaker">Has Dealbreaker</option>
+                <option value="no-dealbreaker">No Dealbreaker</option>
+              </select>
+            </div>
+          </div>
+          <div class="jb-toolbar-right">
+            <span class="jb-toolbar-count" id="jb-visible-count"><%= jobs.length %> jobs</span>
+          </div>
+        </div>
+
         <!-- ============================================================
              SPLIT-PANE MASTER/DETAIL LAYOUT
              ============================================================ -->
@@ -163,9 +196,119 @@
   <script>
     var allJobs = <%- JSON.stringify(jobs.map(function(job) { return job; })) %>;
     var selectedJobId = null;
+    var filteredJobs = allJobs.slice(); // currently visible jobs
 
     function findJob(id) {
       return allJobs.find(function(j) { return j.id === id; });
+    }
+
+    /**
+     * Sort & filter the job list based on toolbar selections, then re-render cards.
+     */
+    function applyFilters() {
+      var sortVal = document.getElementById('jb-sort').value;
+      var filterVal = document.getElementById('jb-filter-extra').value;
+
+      // Start from all jobs
+      var result = allJobs.slice();
+
+      // ---- Apply filter ----
+      var todayStr = new Date().toISOString().slice(0, 10);
+      if (filterVal === 'today') {
+        result = result.filter(function(j) { return j.createdAt && j.createdAt.slice(0, 10) === todayStr; });
+      } else if (filterVal === 'urgent') {
+        result = result.filter(function(j) { return j.priority === 'urgent'; });
+      } else if (filterVal === 'high+') {
+        result = result.filter(function(j) { return j.priority === 'urgent' || j.priority === 'high'; });
+      } else if (filterVal === 'enriched') {
+        result = result.filter(function(j) { return j.enrichmentStatus === 'enriched'; });
+      } else if (filterVal === 'pending') {
+        result = result.filter(function(j) { return j.enrichmentStatus === 'pending'; });
+      } else if (filterVal === 'dealbreaker') {
+        result = result.filter(function(j) { return j.dealbreaker && j.dealbreaker !== ''; });
+      } else if (filterVal === 'no-dealbreaker') {
+        result = result.filter(function(j) { return !j.dealbreaker || j.dealbreaker === ''; });
+      }
+
+      // ---- Apply sort ----
+      var priorityRank = { urgent: 1, high: 2, normal: 3, low: 4, '': 5 };
+      if (sortVal === 'newest') {
+        result.sort(function(a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
+      } else if (sortVal === 'oldest') {
+        result.sort(function(a, b) { return (a.createdAt || '').localeCompare(b.createdAt || ''); });
+      } else if (sortVal === 'score-desc') {
+        result.sort(function(a, b) {
+          if ((a.matchScore || 0) === 0 && (b.matchScore || 0) === 0) return 0;
+          if ((a.matchScore || 0) === 0) return 1;
+          if ((b.matchScore || 0) === 0) return -1;
+          return (b.matchScore || 0) - (a.matchScore || 0);
+        });
+      } else if (sortVal === 'score-asc') {
+        result.sort(function(a, b) {
+          if ((a.matchScore || 0) === 0 && (b.matchScore || 0) === 0) return 0;
+          if ((a.matchScore || 0) === 0) return 1;
+          if ((b.matchScore || 0) === 0) return -1;
+          return (a.matchScore || 0) - (b.matchScore || 0);
+        });
+      } else if (sortVal === 'priority') {
+        result.sort(function(a, b) {
+          var pa = priorityRank[a.priority] || 5;
+          var pb = priorityRank[b.priority] || 5;
+          if (pa !== pb) return pa - pb;
+          return (b.matchScore || 0) - (a.matchScore || 0);
+        });
+      } else if (sortVal === 'company') {
+        result.sort(function(a, b) { return (a.company || '').localeCompare(b.company || ''); });
+      }
+
+      filteredJobs = result;
+      renderJobList(result);
+
+      // Update visible count
+      document.getElementById('jb-visible-count').textContent = result.length + ' job' + (result.length !== 1 ? 's' : '');
+    }
+
+    /**
+     * Re-render the job card list from a given array.
+     */
+    function renderJobList(jobs) {
+      var listEl = document.getElementById('jb-list');
+      if (!listEl) return;
+
+      if (jobs.length === 0) {
+        listEl.innerHTML = '<div class="cy-empty" style="padding: 60px 20px;"><p>No jobs match the current filters.</p></div>';
+        return;
+      }
+
+      var html = '';
+      jobs.forEach(function(job) {
+        var urgentClass = job.priority === 'urgent' ? ' jb-card--urgent' : job.priority === 'high' ? ' jb-card--high' : '';
+        var activeClass = job.id === selectedJobId ? ' jb-card--active' : '';
+        var scoreClass = job.matchScore >= 85 ? 'excellent' : job.matchScore >= 70 ? 'good' : job.matchScore >= 50 ? 'decent' : job.matchScore > 0 ? 'low' : 'none';
+
+        html += '<div class="jb-card' + urgentClass + activeClass + '" data-job-id="' + job.id + '" onclick="selectJob(\'' + job.id + '\')" tabindex="0" role="button">';
+        html += '<div class="jb-card-top"><div class="jb-card-badges">';
+        if (job.priority && job.priority !== 'normal' && job.priority !== 'low') {
+          html += '<span class="cy-priority ' + job.priority + '">' + job.priority.toUpperCase() + '</span>';
+        }
+        if (job.enrichmentStatus === 'pending') {
+          html += '<span class="cy-enrichment-pending">Analyzing...</span>';
+        }
+        html += '<span class="cy-status ' + job.status + '">' + job.status + '</span>';
+        html += '</div>';
+        html += '<span class="jb-card-score ' + scoreClass + '">' + job.matchScore + '</span>';
+        html += '</div>';
+        html += '<div class="jb-card-title">' + escapeHtml(job.title) + '</div>';
+        html += '<div class="jb-card-company">' + escapeHtml(job.company) + (job.location ? ' &middot; ' + escapeHtml(job.location) : '') + '</div>';
+        html += '<div class="jb-card-meta">';
+        html += '<span class="jb-card-date"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' + escapeHtml(job.postedDate || 'Unknown') + '</span>';
+        if (job.employmentType) {
+          html += '<span class="jb-card-type">' + escapeHtml(job.employmentType) + '</span>';
+        }
+        html += '</div></div>';
+      });
+
+      listEl.innerHTML = html;
     }
 
     function escapeHtml(str) {
