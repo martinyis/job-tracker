@@ -40,9 +40,18 @@ export const SELECTORS = {
 
   /** Login/signup modals that may appear */
   modals: {
-    /** Dismiss/close button on signup/login modal */
-    dismissButton: '.modal__dismiss, [data-tracking-control-name="public_jobs_apply-link-offsite_sign-up-modal_dismiss"], button[aria-label="Dismiss"]',
+    /** Dismiss/close button on signup/login modal — multiple patterns for different modal types */
+    dismissButton:
+      '.modal__dismiss, ' +
+      '[data-tracking-control-name="public_jobs_apply-link-offsite_sign-up-modal_dismiss"], ' +
+      'button[aria-label="Dismiss"], ' +
+      'button[aria-label="Close"], ' +
+      'button[data-tracking-control-name="auth_wall_desktop_dismiss-btn"], ' +
+      '.artdeco-modal__dismiss, ' +
+      '.msg-overlay-bubble-header__control--close, ' +
+      'button[data-test-modal-close-btn], ' +
+      'icon[data-test-icon="close-medium"]',
     /** The modal overlay itself */
-    modalOverlay: '.modal__overlay, .authentication-outlet',
+    modalOverlay: '.modal__overlay, .authentication-outlet, .artdeco-modal-overlay',
   },
 } as const;

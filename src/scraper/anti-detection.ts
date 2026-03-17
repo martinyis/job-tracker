@@ -27,6 +27,25 @@ const VIEWPORT_SIZES = [
 ];
 
 /**
+ * Mobile user agents for unauthenticated search.
+ * LinkedIn's mobile web shows results without login and respects URL time filters,
+ * unlike desktop which blocks unauthenticated users or ignores time filters when authenticated.
+ */
+const MOBILE_USER_AGENTS = [
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Mobile/15E148 Safari/604.1',
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/122.0.6261.89 Mobile/15E148 Safari/604.1',
+  'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.90 Mobile Safari/537.36',
+  'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.90 Mobile Safari/537.36',
+];
+
+const MOBILE_VIEWPORTS = [
+  { width: 390, height: 844 },   // iPhone 14
+  { width: 393, height: 852 },   // iPhone 15
+  { width: 412, height: 915 },   // Pixel 8
+  { width: 360, height: 780 },   // Samsung Galaxy S24
+];
+
+/**
  * Returns a random user agent string.
  */
 export function getRandomUserAgent(): string {
@@ -56,6 +75,21 @@ export async function waitNavigation(): Promise<void> {
     config.scraper.navigationDelay.max,
   );
   await new Promise((resolve) => setTimeout(resolve, delay));
+}
+
+/**
+ * Returns mobile browser context options for unauthenticated job searching.
+ * LinkedIn mobile web shows results without login and respects time filters.
+ */
+export function getMobileContextOptions() {
+  const viewport = MOBILE_VIEWPORTS[Math.floor(Math.random() * MOBILE_VIEWPORTS.length)];
+  const userAgent = MOBILE_USER_AGENTS[Math.floor(Math.random() * MOBILE_USER_AGENTS.length)];
+  return {
+    viewport,
+    userAgent,
+    isMobile: true,
+    hasTouch: true,
+  };
 }
 
 /**

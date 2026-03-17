@@ -5,7 +5,11 @@ import { logger } from '../logger';
 import { router } from './routes';
 import { setupRouter, isConfigured } from './setup-routes';
 import { profileRouter } from './profile-routes';
+import { chatRouter } from './chat-routes';
 import { resetEnricherStateOnStartup } from '../database/enrichment-queries';
+import { startCleanupInterval } from '../chat/chat-store';
+import { startRejectedJobCleanup } from '../background/rejected-cleanup';
+import { startSpamCompanyDetector } from '../background/spam-company-detector';
 
 /**
  * Creates and configures the Express UI server.
@@ -30,6 +34,7 @@ export function createServer(): express.Application {
   // Setup & profile routes (always available)
   app.use('/', setupRouter);
   app.use('/', profileRouter);
+  app.use('/', chatRouter);
 
   // Redirect to setup if not configured (async check)
   app.use(async (req, res, next) => {
@@ -55,7 +60,16 @@ export async function startServer(): Promise<void> {
 
   const app = createServer();
 
-  app.listen(config.ui.port, () => {
+  // Start chat session cleanup (evicts idle sessions every 5 minutes)
+  startCleanupInterval();
+
+  // Start background job to delete rejected jobs every 2 hours
+  startRejectedJobCleanup();
+
+  // Start background job to reject mass-posting companies every 2 minutes
+  startSpamCompanyDetector();
+
+  app.listen(config.ui.port, '0.0.0.0', () => {
     logger.info(`UI server running at http://localhost:${config.ui.port}`);
   });
 }

@@ -83,6 +83,7 @@ export async function startEnricher(): Promise<{ pid: number }> {
     stdio: ['ignore', logFd, logFd],
     cwd: path.resolve('.'),
     env: { ...process.env },
+    shell: true,
   });
 
   fs.closeSync(logFd);

@@ -8,3 +8,4 @@ data/documents/*.pdf
 data/linkedin-cookies.json
 playwright/.auth/
 *.tsbuildinfo
+docs/vps/

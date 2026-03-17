@@ -59,22 +59,12 @@ async function main(): Promise<void> {
 async function shutdown(signal: string): Promise<void> {
   logger.info(`Scraper agent received ${signal}, shutting down gracefully...`);
 
-  // Signal the scheduler to stop
+  // Signal the scheduler to stop starting new cycles
   requestShutdown();
+
+  // Stop all keyword runners and wait for in-progress cycles to finish
   if (schedulerHandle) {
-    schedulerHandle.stop();
-  }
-
-  // Wait for any in-progress cycle to finish
-  const maxWaitMs = 120_000; // 2 minutes max
-  const pollMs = 1000;
-  const start = Date.now();
-
-  while (Date.now() - start < maxWaitMs) {
-    const state = await getScraperState();
-    if (!state.isRunning) break;
-    logger.info('Waiting for current scrape cycle to finish...');
-    await new Promise((r) => setTimeout(r, pollMs));
+    await schedulerHandle.stopAll();
   }
 
   // Clean up our PID from the database

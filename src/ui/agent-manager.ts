@@ -86,6 +86,7 @@ export async function startAgent(): Promise<{ pid: number }> {
     stdio: ['ignore', logFd, logFd],
     cwd: path.resolve('.'),
     env: { ...process.env },
+    shell: true,
   });
 
   fs.closeSync(logFd);
