@@ -177,7 +177,50 @@ async function enrichmentLoop(): Promise<void> {
         continue;
       }
 
-      // Step 1.5: Applicant count dealbreaker — reject jobs with 100+ applicants
+      // Step 1.5a: Unpaid/volunteer dealbreaker — reject before AI call
+      const descLower = jobDetail.description.toLowerCase();
+      const titleLower = job.title.toLowerCase();
+      const unpaidPatterns = ['unpaid', 'no pay', 'uncompensated', 'volunteer position', 'volunteer role', 'unpaid internship', 'for college credit', 'for credit only', 'credit-only'];
+      const isUnpaid = unpaidPatterns.some((p) => descLower.includes(p) || titleLower.includes(p));
+      if (isUnpaid) {
+        const matchedPattern = unpaidPatterns.find((p) => descLower.includes(p) || titleLower.includes(p));
+        logger.info('Job rejected: unpaid/volunteer position', {
+          id: job.id,
+          title: job.title,
+          company: job.company,
+          matchedPattern,
+        });
+
+        await updateJobEnrichment(job.id, {
+          description: jobDetail.description,
+          priority: 'low',
+          priorityReason: `Dealbreaker: unpaid/volunteer position (${matchedPattern})`,
+          matchScore: 0,
+          matchReason: '',
+          keyMatches: [],
+          actionItems: [],
+          redFlags: ['Unpaid or volunteer position'],
+          companyInfo: jobDetail.companyInfo,
+          applicantCount: jobDetail.applicantCount,
+          seniorityLevel: jobDetail.seniorityLevel,
+          employmentType: jobDetail.employmentType,
+          jobFunction: jobDetail.jobFunction,
+          postedBy: jobDetail.postedBy,
+          postedByTitle: jobDetail.postedByTitle,
+          postedByProfile: jobDetail.postedByProfile,
+          contactPeople: jobDetail.contactPeople,
+          scoreBreakdown: { dealbreaker: 'unpaidPosition', matchedPattern },
+          dealbreaker: 'unpaidPosition',
+          status: 'rejected',
+        });
+
+        await markEnricherSuccess();
+        jobsProcessedSinceBrowserStart++;
+        await sleep(randomDelay(BETWEEN_JOBS_DELAY.min, BETWEEN_JOBS_DELAY.max));
+        continue;
+      }
+
+      // Step 1.5b: Applicant count dealbreaker — reject jobs with 100+ applicants
       // before spending an AI call on them
       const applicantCountNum = parseApplicantCount(jobDetail.applicantCount);
       if (applicantCountNum !== null && applicantCountNum >= 100) {
