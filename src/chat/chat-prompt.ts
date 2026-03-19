@@ -1,3 +1,22 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
+/**
+ * Loads the personal context file (cached in memory).
+ */
+let personalContextCache: string | null = null;
+
+function loadPersonalContext(): string {
+  if (personalContextCache !== null) return personalContextCache;
+  try {
+    const contextPath = path.join(process.cwd(), 'data', 'martin-context.md');
+    personalContextCache = fs.readFileSync(contextPath, 'utf-8');
+  } catch {
+    personalContextCache = '';
+  }
+  return personalContextCache;
+}
+
 /**
  * Builds the system prompt for a chat session from profile + job data.
  */
@@ -140,6 +159,9 @@ Key skills: ${skills}
 
 Recent experience:
 ${experience}
+
+DEEP PERSONAL CONTEXT (use this to sound human, tell stories, and answer behavioral questions):
+${loadPersonalContext()}
 
 JOB DETAILS:
 Title: ${job.title}

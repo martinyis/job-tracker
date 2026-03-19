@@ -207,10 +207,11 @@ CANDIDATE PROFILE:
 ${profile.profileSummaryCache || 'No profile summary available.'}
 
 CANDIDATE FACTS (use these for scoring -- do NOT contradict):
+- Current location: San Jose, CA (San Francisco Bay Area)
 - Years of professional experience: ${profile.yearsOfExperience}
 - Visa status: Has green card (does NOT need sponsorship)
 - Willing to relocate: ${profile.willingToRelocate ? 'Yes, anywhere in the US' : 'No'}
-- Remote preference: ${profile.remoteOnly ? 'Remote only' : 'Remote preferred but open to hybrid/onsite'}
+- Remote preference: Remote is preferred but NOT critical. Hybrid or onsite roles in the Bay Area (San Jose, San Francisco, South Bay, Peninsula, East Bay) are perfectly fine. Do NOT penalize Bay Area hybrid/onsite roles.
 - Open to contract: ${profile.openToContract ? 'Yes' : 'No, full-time only'}
 
 WHAT THE CANDIDATE IS LOOKING FOR:
@@ -293,6 +294,7 @@ Extract these boolean/string signals from the posting:
 - highApplicantCount: true if 500+ applicants
 - ghostListingSignals: true if multiple signs of inactivity (huge applicants + vague description + no poster info)
 - repostSignal: true if clear indicators this is a recycled/re-posted listing
+- isEntryLevel: true if the role is explicitly entry-level, junior, new grad, or requires 0-2 years of experience
 
 Also provide human-readable analysis:
 - matchReason: 2-3 sentence summary of overall fit
@@ -312,7 +314,7 @@ VALID red flags (examples):
 NEVER flag ANY of the following (these are scored via dimensions, not red flags):
 - Company size or type (scored in companyStage dimension)
 - Industry not being AI or startup (scored in aiRelevance and companyStage)
-- On-site, hybrid, or relocation requirement (candidate has green card and is willing to relocate ANYWHERE in the US)
+- On-site, hybrid, or relocation requirement (candidate lives in San Jose/Bay Area and is willing to relocate ANYWHERE in the US)
 - Visa sponsorship not offered (candidate has a GREEN CARD and does NOT need sponsorship)
 - Lack of direct contact info (scored in directContact dimension)
 - The role not being at a startup (scored in companyStage dimension)
@@ -354,7 +356,8 @@ Respond with ONLY valid JSON (no markdown, no code fences):
     "isStaffingAgency": false,
     "highApplicantCount": false,
     "ghostListingSignals": false,
-    "repostSignal": false
+    "repostSignal": false,
+    "isEntryLevel": false
   },
   "analysis": {
     "matchReason": "",

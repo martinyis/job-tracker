@@ -157,6 +157,7 @@ function validateResponse(parsed: any): EnrichmentAnalysis {
       highApplicantCount: ensureBool(ex.highApplicantCount),
       ghostListingSignals: ensureBool(ex.ghostListingSignals),
       repostSignal: ensureBool(ex.repostSignal),
+      isEntryLevel: ensureBool(ex.isEntryLevel),
     },
     analysis: {
       matchReason: typeof an.matchReason === 'string' ? an.matchReason : '',
@@ -199,6 +200,7 @@ function getDefaultAnalysis(): EnrichmentAnalysis {
       highApplicantCount: false,
       ghostListingSignals: false,
       repostSignal: false,
+      isEntryLevel: false,
     },
     analysis: {
       matchReason: '',

@@ -390,6 +390,50 @@
             </div>
           </div>
 
+          <!-- Tools -->
+          <div class="cc-config-panel">
+            <div class="cc-config-head">
+              <span class="cc-config-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                Tools
+              </span>
+            </div>
+            <div class="cc-config-body">
+              <div class="cc-integration-row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;">
+                  <div>
+                    <span class="cc-integration-name">Filter 100+ Applicants</span>
+                    <div class="cc-field-hint" style="margin-top: 2px;">Visit each new job's page, reject those with 100+ applicants</div>
+                  </div>
+                  <div id="applicant-filter-actions">
+                    <% if (applicantFilterStatus.running) { %>
+                      <form method="POST" action="/applicant-filter/stop" class="inline-nav-form">
+                        <button type="submit" class="cy-btn-agent-stop">Stop</button>
+                      </form>
+                    <% } else { %>
+                      <form method="POST" action="/applicant-filter/start" class="inline-nav-form">
+                        <button type="submit" class="cc-save-btn">Run</button>
+                      </form>
+                    <% } %>
+                  </div>
+                </div>
+                <div id="applicant-filter-status" style="<%= applicantFilterStatus.running ? '' : 'display:none;' %>">
+                  <div class="cc-terminal" style="margin-top: 4px;">
+                    <div class="cc-terminal-head">
+                      <div class="cc-terminal-title">
+                        <span class="cc-terminal-dots"><span class="cc-terminal-dot r"></span><span class="cc-terminal-dot y"></span><span class="cc-terminal-dot g"></span></span>
+                        applicant-filter.log
+                      </div>
+                    </div>
+                    <div class="cc-terminal-body" id="af-log-body" style="max-height: 120px;">
+                      <pre class="cc-terminal-content cc-loading" id="af-log-content"></pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -712,6 +756,56 @@
 
       fetchLogs();
       setInterval(fetchLogs, 3000);
+    })();
+
+    // Applicant filter status + logs
+    (function() {
+      var actions = document.getElementById('applicant-filter-actions');
+      var statusDiv = document.getElementById('applicant-filter-status');
+      var logBody = document.getElementById('af-log-body');
+      var logContent = document.getElementById('af-log-content');
+
+      async function refreshFilter() {
+        try {
+          var res = await fetch('/applicant-filter/status');
+          if (!res.ok) return;
+          var s = await res.json();
+
+          if (s.running) {
+            statusDiv.style.display = '';
+            actions.innerHTML = '<form method="POST" action="/applicant-filter/stop" class="inline-nav-form"><button type="submit" class="cy-btn-agent-stop">Stop</button></form>';
+            // Fetch logs
+            var logRes = await fetch('/applicant-filter/logs?lines=50');
+            if (logRes.ok) {
+              var data = await logRes.json();
+              logContent.classList.remove('cc-loading');
+              if (data.lines.length === 0) {
+                logContent.textContent = '> starting...';
+                logContent.classList.add('cc-loading');
+              } else {
+                logContent.textContent = data.lines.join('\n');
+                logBody.scrollTop = logBody.scrollHeight;
+              }
+            }
+          } else {
+            actions.innerHTML = '<form method="POST" action="/applicant-filter/start" class="inline-nav-form"><button type="submit" class="cc-save-btn">Run</button></form>';
+            // If it was running before but now stopped, show final logs
+            if (statusDiv.style.display !== 'none') {
+              var logRes = await fetch('/applicant-filter/logs?lines=50');
+              if (logRes.ok) {
+                var data = await logRes.json();
+                if (data.lines.length > 0) {
+                  logContent.classList.remove('cc-loading');
+                  logContent.textContent = data.lines.join('\n');
+                  logBody.scrollTop = logBody.scrollHeight;
+                }
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      setInterval(refreshFilter, 3000);
     })();
 
     // ================================================================

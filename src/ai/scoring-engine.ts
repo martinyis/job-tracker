@@ -37,6 +37,7 @@ export interface ExtractedSignals {
   highApplicantCount: boolean;
   ghostListingSignals: boolean;
   repostSignal: boolean;
+  isEntryLevel: boolean;
 }
 
 export interface ScoreBreakdown {
@@ -82,11 +83,11 @@ export interface JobContext {
 // ─── Weights ─────────────────────────────────────────────
 
 export const DIMENSION_WEIGHTS: Record<string, number> = {
-  techStack: 0.10,
-  roleType: 0.09,
-  aiRelevance: 0.12,
+  techStack: 0.12,
+  roleType: 0.10,
+  aiRelevance: 0.14,
   fullStackBreadth: 0.05,
-  productOwnership: 0.06,
+  productOwnership: 0.07,
   companyStage: 0.12,
   growthPotential: 0.06,
   experienceMatch: 0.08,
@@ -94,10 +95,10 @@ export const DIMENSION_WEIGHTS: Record<string, number> = {
   applicantCompetition: 0.04,
   descriptionQuality: 0.03,
   postingFreshness: 0.02,
-  remotePosition: 0.12,
+  remotePosition: 0.05,
   directContact: 0.03,
   posterRole: 0.02,
-  applicationMethod: 0.01,
+  applicationMethod: 0.02,
 };
 
 // ─── Dealbreaker Check ───────────────────────────────────
@@ -177,11 +178,13 @@ function scoreRemotePosition(
   workArrangement: string,
   willingToRelocate: boolean,
 ): number {
+  // Remote is nice-to-have but not critical — candidate lives in San Jose, CA
+  // so hybrid/onsite in Bay Area is totally fine
   switch (workArrangement) {
     case 'remote': return 10;
-    case 'hybrid': return 5;
-    case 'onsite': return willingToRelocate ? 3 : 1;
-    default: return 5; // unknown
+    case 'hybrid': return 8;
+    case 'onsite': return willingToRelocate ? 5 : 3;
+    default: return 7; // unknown
   }
 }
 
@@ -230,6 +233,10 @@ export function calculateBonuses(extracted: ExtractedSignals): { bonuses: string
   if (extracted.exactStackCount >= 4) {
     bonuses.push('exactStackMatch');
     total += 3;
+  }
+  if (extracted.isEntryLevel) {
+    bonuses.push('entryLevel');
+    total += 4;
   }
 
   return { bonuses, totalBonus: total };

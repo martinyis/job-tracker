@@ -22,6 +22,7 @@ import { isTelegramConfigured, sendTestNotification } from '../notifications/tel
 import { loadCookies, areCookiesValid } from '../scraper/linkedin-auth';
 import { getAgentStatus, startAgent, stopAgent } from './agent-manager';
 import { getEnricherStatus, startEnricher, stopEnricher } from './enricher-manager';
+import { getApplicantFilterStatus, startApplicantFilter, stopApplicantFilter } from './applicant-filter-manager';
 import { config, reloadConfig } from '../config';
 import { logger } from '../logger';
 
@@ -487,6 +488,65 @@ router.get('/enricher/logs', (_req: Request, res: Response) => {
   }
 });
 
+// ─── Applicant Filter ────────────────────────────────────
+
+router.post('/applicant-filter/start', async (_req: Request, res: Response) => {
+  try {
+    startApplicantFilter();
+    res.redirect('/control');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to start applicant filter', { error: message });
+    res.redirect(`/control?agentError=${encodeURIComponent(message)}`);
+  }
+});
+
+router.post('/applicant-filter/stop', async (_req: Request, res: Response) => {
+  try {
+    await stopApplicantFilter();
+    res.redirect('/control');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    logger.error('Failed to stop applicant filter', { error: message });
+    res.redirect(`/control?agentError=${encodeURIComponent(message)}`);
+  }
+});
+
+router.get('/applicant-filter/status', (_req: Request, res: Response) => {
+  res.json(getApplicantFilterStatus());
+});
+
+router.get('/applicant-filter/logs', (_req: Request, res: Response) => {
+  try {
+    const maxLines = Math.min(Number(_req.query.lines) || 150, 500);
+    const logPath = path.resolve('./logs/applicant-filter.log');
+
+    if (!fs.existsSync(logPath)) {
+      res.json({ lines: [], truncated: false });
+      return;
+    }
+
+    const stat = fs.statSync(logPath);
+    const readSize = Math.min(stat.size, 65536);
+    const fd = fs.openSync(logPath, 'r');
+    const buffer = Buffer.alloc(readSize);
+    fs.readSync(fd, buffer, 0, readSize, Math.max(0, stat.size - readSize));
+    fs.closeSync(fd);
+
+    const content = buffer.toString('utf-8');
+    const allLines = content.split('\n').filter((l) => l.length > 0);
+    const truncated = allLines.length > maxLines || stat.size > readSize;
+    const lines = allLines.slice(-maxLines).map((line) => line.replace(ANSI_REGEX, ''));
+
+    res.json({ lines, truncated });
+  } catch (error) {
+    logger.error('Error reading applicant filter logs', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: 'Failed to read applicant filter logs' });
+  }
+});
+
 // ─── Telegram Notifications ──────────────────────────────
 
 /**
@@ -543,11 +603,14 @@ router.get('/control', async (req: Request, res: Response) => {
     const linkedinSessionValid = cookies !== null && areCookiesValid(cookies);
     const telegramConfigured = !!(config.telegram.botToken && config.telegram.chatId);
 
+    const applicantFilterStatus = getApplicantFilterStatus();
+
     res.render('control', {
       scraperState,
       agentStatus,
       enricherStatus,
       enrichmentQueueSize,
+      applicantFilterStatus,
       linkedinSessionValid,
       telegramConfigured,
       scraperSettings: {

@@ -76,6 +76,70 @@ function preFilterByKeywords(jobs: JobForFiltering[], excludeKeywords: string[])
   return { passed, rejected };
 }
 
+/** Companies that are job-board spam or aggregators — always rejected. */
+const BLACKLISTED_COMPANIES = ['remotehunter', 'jobright.ai', 'wire'];
+
+/** Title keywords that indicate unpaid positions — always rejected. */
+const UNPAID_KEYWORDS = ['unpaid', 'volunteer', 'no pay', 'uncompensated'];
+
+/**
+ * Rejects jobs from blacklisted companies (spam aggregators, etc.).
+ * Matching is case-insensitive substring.
+ */
+function preFilterByCompanyBlacklist(jobs: JobForFiltering[]): {
+  passed: JobForFiltering[];
+  rejected: JobForFiltering[];
+} {
+  const passed: JobForFiltering[] = [];
+  const rejected: JobForFiltering[] = [];
+
+  for (const job of jobs) {
+    const companyLower = job.company.toLowerCase().trim();
+    const isBlacklisted = BLACKLISTED_COMPANIES.some((bl) => companyLower.includes(bl));
+    if (isBlacklisted) {
+      rejected.push(job);
+    } else {
+      passed.push(job);
+    }
+  }
+
+  return { passed, rejected };
+}
+
+/**
+ * Rejects jobs whose titles indicate unpaid/volunteer positions.
+ * Uses word-boundary matching where possible.
+ */
+function preFilterUnpaid(jobs: JobForFiltering[]): {
+  passed: JobForFiltering[];
+  rejected: JobForFiltering[];
+} {
+  const matchers = UNPAID_KEYWORDS.map((kw) => {
+    if (/^[a-z0-9\s]+$/i.test(kw)) {
+      return new RegExp(`\\b${escapeRegex(kw)}\\b`, 'i');
+    }
+    return null;
+  });
+
+  const passed: JobForFiltering[] = [];
+  const rejected: JobForFiltering[] = [];
+
+  for (const job of jobs) {
+    const titleLower = job.title.toLowerCase();
+    const isUnpaid = matchers.some((regex, i) => {
+      if (regex) return regex.test(titleLower);
+      return titleLower.includes(UNPAID_KEYWORDS[i]);
+    });
+    if (isUnpaid) {
+      rejected.push(job);
+    } else {
+      passed.push(job);
+    }
+  }
+
+  return { passed, rejected };
+}
+
 /**
  * Rejects jobs whose titles contain seniority level numbers (II, III, IV, 2, 3, 4, etc.)
  * that indicate mid-senior to senior level. Only active when targetSeniority is set
@@ -193,11 +257,29 @@ export async function filterRelevantJobs(
     });
   }
 
+  // Layer 1b: Company blacklist (spam aggregators)
+  const { passed: afterCompany, rejected: companyRejected } =
+    preFilterByCompanyBlacklist(afterKeywords);
+  if (companyRejected.length > 0) {
+    logger.info(`Company blacklist filter: ${afterKeywords.length} -> ${afterCompany.length} (rejected ${companyRejected.length})`, {
+      rejectedJobs: companyRejected.map((j) => `${j.title} @ ${j.company}`),
+    });
+  }
+
+  // Layer 1c: Unpaid/volunteer positions
+  const { passed: afterUnpaid, rejected: unpaidRejected } =
+    preFilterUnpaid(afterCompany);
+  if (unpaidRejected.length > 0) {
+    logger.info(`Unpaid filter: ${afterCompany.length} -> ${afterUnpaid.length} (rejected ${unpaidRejected.length})`, {
+      rejectedTitles: unpaidRejected.map((j) => j.title),
+    });
+  }
+
   // Layer 2: Seniority level numbers
   const { passed: afterSeniority, rejected: seniorityRejected } =
-    preFilterBySeniorityLevel(afterKeywords, preferences.targetSeniority);
+    preFilterBySeniorityLevel(afterUnpaid, preferences.targetSeniority);
   if (seniorityRejected.length > 0) {
-    logger.info(`Seniority level filter: ${afterKeywords.length} -> ${afterSeniority.length} (rejected ${seniorityRejected.length})`, {
+    logger.info(`Seniority level filter: ${afterUnpaid.length} -> ${afterSeniority.length} (rejected ${seniorityRejected.length})`, {
       rejectedTitles: seniorityRejected.map((j) => j.title),
     });
   }
