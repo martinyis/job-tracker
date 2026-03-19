@@ -231,6 +231,7 @@ model AppSettings {
 
   // Analytics
   dailyApplicationGoal Int @default(10)
+  timezone             String @default("America/New_York")
 
   updatedAt DateTime @updatedAt
 }

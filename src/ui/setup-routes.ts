@@ -167,6 +167,7 @@ setupRouter.get('/setup', async (req: Request, res: Response) => {
   res.render('setup', {
     apiKey,
     settings: templateSettings,
+    timezone: settings.timezone,
     saved: req.query.saved === '1',
   });
 });
@@ -181,6 +182,7 @@ setupRouter.post('/setup/config', async (req: Request, res: Response) => {
       JOB_KEYWORDS,
       JOB_LOCATIONS,
       UI_PORT,
+      TIMEZONE,
     } = req.body;
 
     // Save API key to .env
@@ -191,6 +193,7 @@ setupRouter.post('/setup/config', async (req: Request, res: Response) => {
       searchKeywords: splitComma(JOB_KEYWORDS),
       searchLocations: splitComma(JOB_LOCATIONS),
       uiPort: parseInt(UI_PORT, 10) || 3000,
+      timezone: TIMEZONE || 'America/New_York',
     });
 
     await reloadConfig();

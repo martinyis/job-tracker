@@ -76,6 +76,26 @@
                 value="<%= settings.ui.port %>" min="1000" max="65535">
             </div>
 
+            <div class="cy-form-group">
+              <label for="TIMEZONE">Timezone</label>
+              <select id="TIMEZONE" name="TIMEZONE">
+                <option value="America/New_York" <%= settings.timezone === 'America/New_York' ? 'selected' : '' %>>Eastern Time (ET)</option>
+                <option value="America/Chicago" <%= settings.timezone === 'America/Chicago' ? 'selected' : '' %>>Central Time (CT)</option>
+                <option value="America/Denver" <%= settings.timezone === 'America/Denver' ? 'selected' : '' %>>Mountain Time (MT)</option>
+                <option value="America/Los_Angeles" <%= settings.timezone === 'America/Los_Angeles' ? 'selected' : '' %>>Pacific Time (PT)</option>
+                <option value="America/Anchorage" <%= settings.timezone === 'America/Anchorage' ? 'selected' : '' %>>Alaska Time (AKT)</option>
+                <option value="Pacific/Honolulu" <%= settings.timezone === 'Pacific/Honolulu' ? 'selected' : '' %>>Hawaii Time (HT)</option>
+                <option value="UTC" <%= settings.timezone === 'UTC' ? 'selected' : '' %>>UTC</option>
+                <option value="Europe/London" <%= settings.timezone === 'Europe/London' ? 'selected' : '' %>>London (GMT/BST)</option>
+                <option value="Europe/Berlin" <%= settings.timezone === 'Europe/Berlin' ? 'selected' : '' %>>Central Europe (CET)</option>
+                <option value="Europe/Kiev" <%= settings.timezone === 'Europe/Kiev' ? 'selected' : '' %>>Eastern Europe (EET)</option>
+                <option value="Asia/Kolkata" <%= settings.timezone === 'Asia/Kolkata' ? 'selected' : '' %>>India (IST)</option>
+                <option value="Asia/Tokyo" <%= settings.timezone === 'Asia/Tokyo' ? 'selected' : '' %>>Japan (JST)</option>
+                <option value="Australia/Sydney" <%= settings.timezone === 'Australia/Sydney' ? 'selected' : '' %>>Sydney (AEST)</option>
+              </select>
+              <span class="cy-hint">Used for daily goal tracking and analytics charts</span>
+            </div>
+
             <button type="submit" class="cy-btn cy-btn-primary cy-btn-lg">Save Configuration</button>
           </form>
         </section>

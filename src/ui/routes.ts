@@ -240,6 +240,9 @@ router.get('/analytics', async (req: Request, res: Response) => {
   try {
     const days = Math.min(Number(req.query.days) || 30, 90);
 
+    const settings = await getOrCreateSettings();
+    const tz = settings.timezone;
+
     const [
       appliedPerDay,
       createdPerDay,
@@ -248,16 +251,14 @@ router.get('/analytics', async (req: Request, res: Response) => {
       weeklyApplied,
       averageDailyApplied,
       stats,
-      settings,
     ] = await Promise.all([
-      getAppliedPerDay(days),
-      getCreatedPerDay(days),
-      getRejectedPerDay(days),
-      getTodayAppliedCount(),
-      getWeeklyAppliedCount(),
-      getAverageDailyApplied(days),
+      getAppliedPerDay(days, tz),
+      getCreatedPerDay(days, tz),
+      getRejectedPerDay(days, tz),
+      getTodayAppliedCount(tz),
+      getWeeklyAppliedCount(tz),
+      getAverageDailyApplied(days, tz),
       getStats(),
-      getOrCreateSettings(),
     ]);
 
     res.render('analytics', {
@@ -268,6 +269,7 @@ router.get('/analytics', async (req: Request, res: Response) => {
       weeklyApplied,
       averageDailyApplied,
       dailyGoal: settings.dailyApplicationGoal,
+      timezone: tz,
       stats,
       days,
     });
@@ -283,6 +285,9 @@ router.get('/analytics/data', async (req: Request, res: Response) => {
   try {
     const days = Math.min(Number(req.query.days) || 30, 90);
 
+    const settings = await getOrCreateSettings();
+    const tz = settings.timezone;
+
     const [
       appliedPerDay,
       createdPerDay,
@@ -291,16 +296,14 @@ router.get('/analytics/data', async (req: Request, res: Response) => {
       weeklyApplied,
       averageDailyApplied,
       stats,
-      settings,
     ] = await Promise.all([
-      getAppliedPerDay(days),
-      getCreatedPerDay(days),
-      getRejectedPerDay(days),
-      getTodayAppliedCount(),
-      getWeeklyAppliedCount(),
-      getAverageDailyApplied(days),
+      getAppliedPerDay(days, tz),
+      getCreatedPerDay(days, tz),
+      getRejectedPerDay(days, tz),
+      getTodayAppliedCount(tz),
+      getWeeklyAppliedCount(tz),
+      getAverageDailyApplied(days, tz),
       getStats(),
-      getOrCreateSettings(),
     ]);
 
     res.json({
@@ -311,6 +314,7 @@ router.get('/analytics/data', async (req: Request, res: Response) => {
       weeklyApplied,
       averageDailyApplied,
       dailyGoal: settings.dailyApplicationGoal,
+      timezone: tz,
       stats,
     });
   } catch (error) {

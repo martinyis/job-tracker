@@ -12,6 +12,7 @@ export interface AppSettingsParsed {
   maxMinutesAgo: number;
   uiPort: number;
   dailyApplicationGoal: number;
+  timezone: string;
   updatedAt: Date;
 }
 
@@ -24,6 +25,7 @@ export interface AppSettingsUpdate {
   maxMinutesAgo?: number;
   uiPort?: number;
   dailyApplicationGoal?: number;
+  timezone?: string;
 }
 
 /**
@@ -62,6 +64,7 @@ export async function updateSettings(data: AppSettingsUpdate): Promise<AppSettin
   if (data.maxMinutesAgo !== undefined) dbData.maxMinutesAgo = data.maxMinutesAgo;
   if (data.uiPort !== undefined) dbData.uiPort = data.uiPort;
   if (data.dailyApplicationGoal !== undefined) dbData.dailyApplicationGoal = data.dailyApplicationGoal;
+  if (data.timezone !== undefined) dbData.timezone = data.timezone;
 
   const settings = await prisma.appSettings.upsert({
     where: { id: 'singleton' },

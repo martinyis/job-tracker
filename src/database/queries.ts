@@ -200,64 +200,94 @@ export interface DailyCount {
 // Note: Prisma stores DateTime as Unix milliseconds in SQLite.
 // We must use `column / 1000, 'unixepoch'` for SQLite date functions.
 
-export async function getAppliedPerDay(days: number = 30): Promise<DailyCount[]> {
+/**
+ * Get the SQLite time modifier string for a given IANA timezone.
+ * Returns e.g. '-7 hours' for America/Los_Angeles (PDT) or '-4 hours' for America/New_York (EDT).
+ * This shifts UTC times to local time in SQL queries.
+ */
+export function getTimezoneOffsetModifier(timezone: string): string {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    timeZoneName: 'shortOffset',
+  });
+  const parts = formatter.formatToParts(now);
+  const tzPart = parts.find((p) => p.type === 'timeZoneName');
+  // tzPart.value is like "GMT-7", "GMT+5:30", "GMT-4"
+  const match = tzPart?.value?.match(/GMT([+-]?\d+)(?::(\d+))?/);
+  if (!match) return '+0 hours'; // fallback to UTC
+  const hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2] || '0', 10);
+  // For half-hour offsets (India, etc), approximate to nearest hour
+  const totalHours = hours + (hours >= 0 ? minutes / 60 : -minutes / 60);
+  const rounded = Math.round(totalHours);
+  return `${rounded >= 0 ? '+' + rounded : String(rounded)} hours`;
+}
+
+export async function getAppliedPerDay(days: number = 30, timezone: string = 'UTC'): Promise<DailyCount[]> {
+  const tz = getTimezoneOffsetModifier(timezone);
   const results = await prisma.$queryRawUnsafe<Array<{ date: string; count: bigint }>>(
-    `SELECT date(appliedAt / 1000, 'unixepoch') as date, COUNT(*) as count
+    `SELECT date(appliedAt / 1000, 'unixepoch', '${tz}') as date, COUNT(*) as count
      FROM Job
      WHERE appliedAt IS NOT NULL
-       AND date(appliedAt / 1000, 'unixepoch') >= date('now', '-${days} days')
-     GROUP BY date(appliedAt / 1000, 'unixepoch')
+       AND date(appliedAt / 1000, 'unixepoch', '${tz}') >= date('now', '${tz}', '-${days} days')
+     GROUP BY date(appliedAt / 1000, 'unixepoch', '${tz}')
      ORDER BY date ASC`
   );
   return results.map((r) => ({ date: r.date, count: Number(r.count) }));
 }
 
-export async function getCreatedPerDay(days: number = 30): Promise<DailyCount[]> {
+export async function getCreatedPerDay(days: number = 30, timezone: string = 'UTC'): Promise<DailyCount[]> {
+  const tz = getTimezoneOffsetModifier(timezone);
   const results = await prisma.$queryRawUnsafe<Array<{ date: string; count: bigint }>>(
-    `SELECT date(createdAt / 1000, 'unixepoch') as date, COUNT(*) as count
+    `SELECT date(createdAt / 1000, 'unixepoch', '${tz}') as date, COUNT(*) as count
      FROM Job
-     WHERE date(createdAt / 1000, 'unixepoch') >= date('now', '-${days} days')
-     GROUP BY date(createdAt / 1000, 'unixepoch')
+     WHERE date(createdAt / 1000, 'unixepoch', '${tz}') >= date('now', '${tz}', '-${days} days')
+     GROUP BY date(createdAt / 1000, 'unixepoch', '${tz}')
      ORDER BY date ASC`
   );
   return results.map((r) => ({ date: r.date, count: Number(r.count) }));
 }
 
-export async function getRejectedPerDay(days: number = 30): Promise<DailyCount[]> {
+export async function getRejectedPerDay(days: number = 30, timezone: string = 'UTC'): Promise<DailyCount[]> {
+  const tz = getTimezoneOffsetModifier(timezone);
   const results = await prisma.$queryRawUnsafe<Array<{ date: string; count: bigint }>>(
-    `SELECT date(rejectedAt / 1000, 'unixepoch') as date, COUNT(*) as count
+    `SELECT date(rejectedAt / 1000, 'unixepoch', '${tz}') as date, COUNT(*) as count
      FROM Job
      WHERE rejectedAt IS NOT NULL
-       AND date(rejectedAt / 1000, 'unixepoch') >= date('now', '-${days} days')
-     GROUP BY date(rejectedAt / 1000, 'unixepoch')
+       AND date(rejectedAt / 1000, 'unixepoch', '${tz}') >= date('now', '${tz}', '-${days} days')
+     GROUP BY date(rejectedAt / 1000, 'unixepoch', '${tz}')
      ORDER BY date ASC`
   );
   return results.map((r) => ({ date: r.date, count: Number(r.count) }));
 }
 
-export async function getTodayAppliedCount(): Promise<number> {
+export async function getTodayAppliedCount(timezone: string = 'UTC'): Promise<number> {
+  const tz = getTimezoneOffsetModifier(timezone);
   const results = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
     `SELECT COUNT(*) as count FROM Job
      WHERE appliedAt IS NOT NULL
-       AND date(appliedAt / 1000, 'unixepoch') = date('now')`
+       AND date(appliedAt / 1000, 'unixepoch', '${tz}') = date('now', '${tz}')`
   );
   return Number(results[0]?.count ?? 0);
 }
 
-export async function getWeeklyAppliedCount(): Promise<number> {
+export async function getWeeklyAppliedCount(timezone: string = 'UTC'): Promise<number> {
+  const tz = getTimezoneOffsetModifier(timezone);
   const results = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
     `SELECT COUNT(*) as count FROM Job
      WHERE appliedAt IS NOT NULL
-       AND date(appliedAt / 1000, 'unixepoch') >= date('now', 'weekday 0', '-6 days')`
+       AND date(appliedAt / 1000, 'unixepoch', '${tz}') >= date('now', '${tz}', 'weekday 0', '-6 days')`
   );
   return Number(results[0]?.count ?? 0);
 }
 
-export async function getAverageDailyApplied(days: number = 30): Promise<number> {
+export async function getAverageDailyApplied(days: number = 30, timezone: string = 'UTC'): Promise<number> {
+  const tz = getTimezoneOffsetModifier(timezone);
   const results = await prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
     `SELECT COUNT(*) as count FROM Job
      WHERE appliedAt IS NOT NULL
-       AND date(appliedAt / 1000, 'unixepoch') >= date('now', '-${days} days')`
+       AND date(appliedAt / 1000, 'unixepoch', '${tz}') >= date('now', '${tz}', '-${days} days')`
   );
   const total = Number(results[0]?.count ?? 0);
   return Math.round((total / days) * 10) / 10;
