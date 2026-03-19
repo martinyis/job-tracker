@@ -5,6 +5,7 @@ import * as path from 'path';
  * Loads the personal context file (cached in memory).
  */
 let personalContextCache: string | null = null;
+let projectDetailsCache: string | null = null;
 
 function loadPersonalContext(): string {
   if (personalContextCache !== null) return personalContextCache;
@@ -15,6 +16,17 @@ function loadPersonalContext(): string {
     personalContextCache = '';
   }
   return personalContextCache;
+}
+
+function loadProjectDetails(): string {
+  if (projectDetailsCache !== null) return projectDetailsCache;
+  try {
+    const detailsPath = path.join(process.cwd(), 'data', 'project-details.md');
+    projectDetailsCache = fs.readFileSync(detailsPath, 'utf-8');
+  } catch {
+    projectDetailsCache = '';
+  }
+  return projectDetailsCache;
 }
 
 /**
@@ -162,6 +174,9 @@ ${experience}
 
 DEEP PERSONAL CONTEXT (use this to sound human, tell stories, and answer behavioral questions):
 ${loadPersonalContext()}
+
+PROJECT & TECHNICAL DETAILS (use this to answer questions about tech stack, features built, architecture, and technical experience):
+${loadProjectDetails()}
 
 JOB DETAILS:
 Title: ${job.title}
