@@ -360,7 +360,7 @@ After that, you:
 
 5. Run `npm run dev`, go to `http://localhost:3000/setup`
 6. Upload your resume, set search keywords and locations, and fill in the UI-configurable preferences
-7. Start the scraper and enricher from the Control Panel
+7. Start the collector and enricher from the Control Panel
 
 ### The full list of files Claude will modify
 

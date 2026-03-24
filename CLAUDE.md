@@ -4,17 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-An automated AI agent that continuously scrapes LinkedIn for job postings, uses AI (NVIDIA's Kimi K2.5 model) to filter them based on a resume and preferences, and saves relevant matches to a local SQLite database with a web dashboard for review. No LinkedIn login required - uses public job search pages.
+An automated AI agent that continuously monitors LinkedIn for new job postings, uses AI (NVIDIA's Kimi K2.5 model) to filter them based on a resume and preferences, and saves relevant matches to a local SQLite database with a web dashboard for review. No LinkedIn login required — reads publicly available job listings.
 
 ## Development Commands
 
 ### Essential Commands
 - `npm run dev` - Start the UI server (dashboard + settings) on port 3000
-- `npm run agent` - Start the scraper agent as a long-running process (or start/stop from the dashboard)
+- `npm run agent` - Start the job collector as a long-running process (or start/stop from the dashboard)
 - `npm run build` - Compile TypeScript to JavaScript
 - `npm start` - Run the compiled production build (UI only)
 - `npm run ui` - Start only the web UI server on port 3000 (alias for dev)
-- `npm run scrape` - Run a single scrape cycle manually (for testing)
+- `npm run scrape` - Run a single collection cycle manually (for testing)
 
 ### Database Commands
 - `npm run prisma:generate` - Generate Prisma client after schema changes
@@ -28,11 +28,11 @@ The app runs as **two independent processes** that communicate via the SQLite da
 
 **UI Process** (`src/index.ts` — `npm run dev`):
 - Express server on port 3000 (dashboard, settings, agent control)
-- Always runs independently — no scraper dependency
-- Can start/stop the scraper agent via `/agent/start` and `/agent/stop` routes
+- Always runs independently — no collector dependency
+- Can start/stop the collector agent via `/agent/start` and `/agent/stop` routes
 
-**Scraper Agent Process** (`src/scraper-agent.ts` — `npm run agent`):
-- Long-running process that runs scrape cycles on an interval
+**Collector Agent Process** (`src/scraper-agent.ts` — `npm run agent`):
+- Long-running process that runs collection cycles on an interval
 - Writes its PID to `ScraperState.pid` on startup
 - Handles SIGTERM gracefully: finishes current cycle, closes browser, clears PID, exits
 - Can be started from the dashboard UI or via `npm run agent` in terminal
@@ -49,17 +49,17 @@ The `config.ts` module:
 - Provides `reloadConfig()` to hot-reload after settings changes
 - `validateConfig()` checks for required fields (API key, keywords)
 
-### Scraper Pipeline (Fast & Efficient)
-The scraper (`src/scheduler.ts` + `src/scraper/linkedin-scraper.ts`) uses a **card-level** approach with no detail-page visits:
+### Collection Pipeline (Fast & Efficient)
+The collector (`src/scheduler.ts` + `src/scraper/linkedin-scraper.ts`) uses a **card-level** approach with no detail-page visits:
 
-1. **Browser Launch**: Playwright with stealth plugin (anti-detection)
+1. **Browser Launch**: Playwright opens LinkedIn's public job search pages
 2. **Scroll Full Page**: Load ALL job cards (~100-170 per keyword) by scrolling to bottom
 3. **Time Filter**: Keep only jobs posted ≤ `maxMinutesAgo` (default 10 minutes)
 4. **AI Batch Filter**: ONE API call per keyword to filter irrelevant titles
 5. **DB Dedup Check**: Batch query to filter out already-seen jobs
 6. **Save**: Insert new relevant jobs with minimal data (no descriptions)
 
-**Why scroll all cards?** LinkedIn's "sorted by most recent" is unreliable - recent jobs can appear anywhere in the list. The scraper loads everything, then filters by parsed time.
+**Why scroll all cards?** LinkedIn's "sorted by most recent" is unreliable — recent jobs can appear anywhere in the list. The collector loads everything, then filters by parsed time.
 
 ### AI Filtering Strategy
 Located in `src/ai/job-matcher.ts`:
@@ -86,7 +86,7 @@ SQLite database via Prisma (`prisma/schema.prisma`):
 - Timestamps: createdAt, updatedAt
 
 **ScraperState model** (singleton):
-- Tracks scraper health: lastRunAt, lastSuccessAt, errorCount
+- Tracks collector health: lastRunAt, lastSuccessAt, errorCount
 - Prevents overlapping runs with `isRunning` flag
 - `pid` (nullable) — stores the agent process PID for liveness checks and stop signals
 - Auto-pauses after 5 consecutive errors for 30 minutes
@@ -101,12 +101,12 @@ Express server (`src/ui/server.ts`) with EJS templates:
 - Agent control routes — `POST /agent/start`, `POST /agent/stop`, `GET /agent/status`
 - Agent process management logic in `src/ui/agent-manager.ts`
 
-### Anti-Detection
-`src/scraper/anti-detection.ts` + `src/scraper/stealth-browser.ts`:
-- Randomized user agents, viewports
-- Human-like delays (configurable ranges)
-- Playwright-extra with stealth plugin
-- Modal dismissal (LinkedIn shows login prompts on public pages)
+### Browser Configuration
+`src/scraper/anti-detection.ts` + `src/scraper/stealth-browser.ts` (filenames are legacy):
+- Randomized user agents and viewports
+- Configurable navigation delays
+- Playwright-extra with browser plugins
+- Handles LinkedIn UI overlays on public pages
 
 ### Logging
 Winston logger (`src/logger.ts`):
@@ -126,7 +126,7 @@ When the enrichment agent classifies a job as "urgent" priority, it optionally s
 ## Key Implementation Details
 
 ### Configuration Hot-Reload
-When settings are saved via UI, the code calls `reloadConfig()` to update the UI process. The scraper agent (separate process) picks up config changes on its next cycle start by re-reading from the database.
+When settings are saved via UI, the code calls `reloadConfig()` to update the UI process. The collector agent (separate process) picks up config changes on its next cycle start by re-reading from the database.
 
 ### Stuck State Recovery
 On startup, `resetScraperStateOnStartup()` clears any stuck `isRunning=true` state and stale PIDs from previous crashes.
@@ -138,7 +138,7 @@ On startup, `resetScraperStateOnStartup()` clears any stuck `isRunning=true` sta
 Multiple patterns (`/jobs/view/(\d+)`, `currentJobId=(\d+)`, or any 8+ digit number) because LinkedIn uses different URL formats.
 
 ### Error Handling
-The scraper tolerates individual card extraction failures but marks the cycle as failed if the browser crashes or network errors occur. After 5 consecutive failures, it pauses for 30 minutes.
+The collector tolerates individual card extraction failures but marks the cycle as failed if the browser crashes or network errors occur. After 5 consecutive failures, it pauses for 30 minutes.
 
 ## Common Workflows
 
@@ -148,24 +148,24 @@ Use the UI at `/setup` to add keywords and save.
 ### Changing AI Model Parameters
 Edit `config.ts:92-97` to adjust model, maxTokens, or temperature for NVIDIA API calls.
 
-### Adjusting Scraper Speed
+### Adjusting Collection Speed
 Edit `config.ts:104-114`:
-- `intervalMinutes` - time between scrape cycles
+- `intervalMinutes` - time between collection cycles
 - `maxMinutesAgo` - only save jobs posted within this window
-- `navigationDelay`, `clickDelay` - anti-detection timing
+- `navigationDelay`, `clickDelay` - timing between page actions
 
-### Testing AI Filters Without Full Scrape
+### Testing AI Filters Without Full Cycle
 Use `npm run scrape` to run one cycle manually. Check logs for filter metrics (keyword filter → dedup → AI filter → saved).
 
 ## File Locations
 - `data/documents/` - uploaded resumes and documents (not committed)
-- `data/linkedin-cookies.json` - LinkedIn session cookies (not committed)
+- `data/linkedin-cookies.json` - LinkedIn session data (not committed)
 - `prisma/dev.db` - SQLite database containing all settings, profile, and job data (not committed)
 - `logs/` - Winston log files (not committed)
 
 ## Important Notes
-- The scraper does NOT log into LinkedIn - uses only public job search pages
-- LinkedIn may show login modals - these are automatically dismissed
+- The collector does NOT log into LinkedIn — reads only publicly available job listings
+- LinkedIn UI overlays on public pages are handled automatically
 - The "sorted by most recent" filter (`sortBy=DD`) is applied to the URL but LinkedIn's actual ordering is unreliable
-- Job descriptions are NOT scraped in the current pipeline - only card-level data (title, company, time, link)
+- Job descriptions are NOT collected in the initial pipeline — only card-level data (title, company, time, link)
 - `matchScore` and `matchReason` fields exist in the schema but are not populated in the current fast pipeline (defaulted to 0 and empty string)
