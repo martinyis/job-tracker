@@ -9,3 +9,6 @@ data/linkedin-cookies.json
 playwright/.auth/
 *.tsbuildinfo
 docs/vps/
+PROJECT_CONTEXT.md
+data/martin-context.md
+data/project-details.md
