@@ -1,148 +1,205 @@
-# LinkedIn Job Tracker — AI-Powered Agent
+# Job Tracker
 
-An automated AI agent that continuously scrapes LinkedIn for new job postings, uses Claude AI to filter them based on your resume and preferences, and saves relevant matches to a local database with a web dashboard for review.
+**A local AI agent that scrapes LinkedIn for jobs, scores them against your resume, and gives you a command center to manage your entire job search.**
 
-## What It Does
+Stop manually refreshing LinkedIn. This agent runs in the background every 2 minutes, finds new postings, filters out the noise with AI, enriches matches with detailed scoring, and sends you Telegram alerts when something urgent lands. You review, apply, and track everything from one dashboard.
 
-1. **Scrapes LinkedIn** — Runs on a configurable interval (default: every 2 minutes), scanning public LinkedIn job search pages for new postings. No LinkedIn login required.
-2. **AI Filtering** — Sends discovered jobs to Claude (Anthropic API) in batches. Claude compares each job title and company against your resume and preferences, filtering out irrelevant matches instantly.
-3. **Saves Relevant Jobs** — Stores matching jobs in a local SQLite database, automatically deduplicating against previously seen postings.
-4. **Web Dashboard** — Provides a local web UI to browse, review, and track application status for every saved job.
+<br>
 
-## Features
+<div align="center">
 
-- Stealth browser automation with anti-detection (randomized user agents, viewports, human-like delays)
-- Batch AI filtering — one API call per keyword search, not per job
-- Resume PDF upload and AI-generated profile summary (cached after first run)
-- Configurable search keywords, locations, and geo filters
-- Job status tracking: New → Reviewed → Applied → Rejected
-- Notes on individual jobs
-- Auto-pause after 5 consecutive scraper errors (resumes after 30 minutes)
-- Stuck-state recovery on startup
-- Logging to `logs/app.log` and `logs/error.log`
-- Settings import/export via JSON
-- Prisma Studio for direct database access
+![Dashboard](docs/screenshots/dashboard.png)
 
-## Prerequisites
+</div>
 
-- **Node.js** v18 or higher
-- **npm**
-- An **Anthropic API key** ([get one here](https://console.anthropic.com/))
+<br>
 
-## Setup
+## Why This Exists
 
-### 1. Install Dependencies
+Job searching on LinkedIn is tedious. You check the same searches repeatedly, wade through irrelevant postings, and lose track of what you've already seen. This tool automates the entire discovery pipeline:
+
+- **Scrapes every 2 minutes** so you never miss a fresh posting
+- **AI filters the noise** - one API call per keyword batch, not per job
+- **Enriches matches** by visiting each job page for full descriptions, applicant counts, and company info
+- **Scores every job** against your resume and preferences (0-100)
+- **Prioritizes what matters** - urgent/high/normal/low with AI-generated action items
+- **Alerts you via Telegram** when a high-priority match appears
+- **No LinkedIn login required** - uses only public job search pages
+
+<br>
+
+## Screenshots
+
+<details open>
+<summary><strong>Job Review</strong> - AI match scores, red flags, and tailored action items for each posting</summary>
+
+<br>
+
+![Jobs](docs/screenshots/jobs.png)
+
+</details>
+
+<details>
+<summary><strong>Command Center</strong> - Start/stop agents, view logs, manage integrations</summary>
+
+<br>
+
+![Command Center](docs/screenshots/command-center.png)
+
+</details>
+
+<details>
+<summary><strong>Analytics</strong> - Daily goals, application trends, and status breakdowns</summary>
+
+<br>
+
+![Analytics](docs/screenshots/analytics.png)
+
+</details>
+
+<br>
+
+## How It Works
+
+```
+LinkedIn  ──▶  Scraper Agent  ──▶  AI Filter  ──▶  Database  ──▶  Enricher Agent  ──▶  Dashboard
+               (Playwright)       (batch)          (SQLite)       (detail pages)       (Express)
+                                                                       │
+                                                                       ▼
+                                                                  Telegram Alert
+                                                                  (urgent matches)
+```
+
+1. **Scraper** launches a stealth browser, loads LinkedIn search results, scrolls to load all cards, and filters by recency
+2. **AI Filter** sends all discovered titles to the AI in one batch call - irrelevant jobs are discarded before touching the database
+3. **Enricher** visits each saved job's LinkedIn page, extracts the full description, applicant count, company info, and poster details
+4. **AI Scoring** rates each enriched job 0-100 against your resume, flags dealbreakers, generates action items, and assigns priority
+5. **Telegram** fires a notification for urgent matches so you can apply fast
+
+The scraper and enricher run as independent background processes. Start and stop them from the dashboard or the terminal.
+
+<br>
+
+## Quick Start
+
+> **Note:** This agent is currently tuned for the author's job search — AI prompts, scoring weights, and filtering rules are baked into the code. It works for **any field** (marketing, finance, design, engineering, operations — anything on LinkedIn), but you'll need to adapt it for your own profile.
+>
+> **The easiest way:** Open the project in [Claude Code](https://claude.ai/code) and say *"Help me set this up for my job search."* Claude will read **[CUSTOMIZATION.md](CUSTOMIZATION.md)**, interview you about your background, field, and priorities, then update the entire codebase to match. No manual file editing required.
+
+### Prerequisites
+
+- **Node.js** 18+
+- An **NVIDIA API key** for AI scoring ([NVIDIA API Catalog](https://build.nvidia.com/) — uses Kimi K2.5 model)
+- *(Optional)* **Telegram bot** for real-time alerts on urgent matches
+- *(Optional)* **LinkedIn cookies** for authenticated scraping (higher rate limits)
+
+### 1. Install and initialize
 
 ```bash
 npm install
-```
-
-### 2. Set Up the Database
-
-```bash
 npm run prisma:generate
 npm run prisma:migrate
 ```
 
-### 3. Create Your `.env` File
-
-Copy the example and add your API key:
+### 2. Environment variables
 
 ```bash
 cp .env.example .env
 ```
 
-Then edit `.env`:
+Edit `.env` and add:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-your-key-here
+NVIDIA_API_KEY=nvapi-...
+
+# Optional — Telegram notifications for urgent matches
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+TELEGRAM_CHAT_ID=123456789
 ```
 
-This is the only secret stored in `.env`. All other settings live in `data/settings.json`.
-
-### 4. Create Your `settings.json`
-
-Copy the example settings file:
-
-```bash
-cp data/settings.example.json data/settings.json
-```
-
-This file holds all app configuration (search keywords, preferences, scraper options). You can edit it manually or through the web UI in the next step.
-
-### 5. Configure via the Web UI
-
-Start the app:
+### 3. Configure your profile
 
 ```bash
 npm run dev
+# Open http://localhost:3000/setup
 ```
 
-Open [http://localhost:3000/setup](http://localhost:3000/setup) in your browser. From there you can:
+The setup page walks you through everything:
+- **Resume** — Upload a PDF. The AI extracts your skills and experience into a cached profile summary.
+- **Search keywords** — What to search for on LinkedIn (e.g., "marketing manager", "financial analyst", "software engineer", "product designer")
+- **Locations & geo filter** — Where to search. The geoId maps to LinkedIn's location system.
+- **Seniority targets** — Entry, junior, mid, senior — controls which levels get filtered in or out.
+- **Skills & tools** — Your core competencies and tools. Used for scoring and AI filtering.
+- **Exclusion keywords** — Title keywords to auto-reject (e.g., "intern", "director", "volunteer").
+- **Inclusion patterns** — Title whitelist (e.g., "marketing manager", "brand strategist"). When set, only matching titles pass.
+- **Dealbreakers** — Hard stops (e.g., "requires security clearance", "unpaid").
+- **Job search description** — Free-text description of what you're looking for. This is the most important field — it anchors the AI's relevance filter.
+- **Mission statement** — What excites you, what motivates you. Feeds into the enrichment scoring.
+- **Urgency signals** — What should trigger an "urgent" priority flag (e.g., "recently funded", "hiring urgently").
+- **Daily application goal** — Target for the analytics dashboard.
+- **Timezone** — For accurate daily goal tracking.
 
-- Upload your resume (PDF)
-- Set job search keywords and locations
-- Configure your profile preferences (remote work, company size, tech stack, seniority)
-- Set dealbreakers and exclusion keywords
-- Adjust scraper timing and behavior
+### 4. Start the agents
 
-Once you save your settings, the scraper starts running automatically on the configured interval.
+From the **Control Panel** in the dashboard, click **Start** on the scraper and enricher. Or from the terminal:
 
-## Running
+```bash
+npm run agent      # scraper
+npm run enricher   # enricher (in a separate terminal)
+```
 
-| Command | Description |
+<br>
+
+## Commands
+
+| Command | What it does |
 |---|---|
-| `npm run dev` | Start in development mode (TypeScript, auto-reload) |
-| `npm run build` | Compile TypeScript to JavaScript |
-| `npm start` | Run the compiled production build |
-| `npm run ui` | Start only the web UI (no scraper) |
-| `npm run scrape` | Run the scraper once manually |
-| `npm run prisma:studio` | Open Prisma Studio (database GUI) |
+| `npm run dev` | Start the dashboard on port 3000 |
+| `npm run agent` | Run the scraper agent (or start from dashboard) |
+| `npm run enricher` | Run the enricher agent (or start from dashboard) |
+| `npm run scrape` | Run one scrape cycle manually |
+| `npm run prisma:studio` | Open database GUI |
 
-## Project Structure
+<br>
 
-```
-job-tracker/
-├── src/
-│   ├── index.ts              # Entry point — starts UI + scraper scheduler
-│   ├── config.ts             # Loads and manages settings
-│   ├── scheduler.ts          # Scraper scheduling loop
-│   ├── logger.ts             # Winston logging setup
-│   ├── scraper/
-│   │   ├── linkedin-scraper.ts   # Core LinkedIn scraping logic
-│   │   ├── stealth-browser.ts    # Anti-detection browser setup
-│   │   ├── anti-detection.ts     # Randomization utilities
-│   │   └── selectors.ts         # LinkedIn DOM selectors
-│   ├── ai/
-│   │   ├── job-matcher.ts       # AI job relevance filtering
-│   │   ├── resume-processor.ts  # Resume parsing + profile summary
-│   │   └── prompts.ts          # Claude prompt templates
-│   ├── database/
-│   │   ├── client.ts           # Prisma client
-│   │   └── queries.ts          # Database operations
-│   └── ui/
-│       ├── server.ts           # Express web server
-│       ├── routes.ts           # Dashboard routes
-│       ├── setup-routes.ts     # Setup/config routes
-│       └── views/              # EJS templates + CSS
-├── data/
-│   ├── settings.example.json   # Template config (committed)
-│   ├── settings.json           # Your local config (not committed)
-│   ├── resume.pdf              # Your uploaded resume
-│   └── profile-summary.json    # Cached AI profile summary
-├── prisma/
-│   ├── schema.prisma           # Database schema
-│   └── dev.db                  # SQLite database
-├── logs/                       # App and error logs
-├── .env                        # API key (not committed)
-└── package.json
-```
+## Architecture
+
+**Two independent processes** communicate through a shared SQLite database:
+
+- **UI Process** (`npm run dev`) - Express server with EJS templates. Dashboard, job review, settings, analytics, and agent control. Always runs.
+- **Scraper Agent** (`npm run agent`) - Stealth Playwright browser that scrapes LinkedIn on an interval. Spawnable from the dashboard.
+- **Enricher Agent** (`npm run enricher`) - Visits each job's detail page, extracts full info, runs AI scoring. Spawnable from the dashboard.
+
+### Key Design Decisions
+
+- **Card-level scraping** - No detail-page visits during scraping. The scraper grabs card metadata only, keeping cycles fast (~30s per keyword). The enricher handles detail pages separately.
+- **Batch AI calls** - One API call per keyword search, not per job. Keeps costs low.
+- **Anti-detection** - Randomized user agents, viewports, human-like delays, and Playwright stealth plugin. LinkedIn login modals are auto-dismissed.
+- **No login required** - Everything runs on public LinkedIn search pages.
+- **Process isolation** - Scraper and enricher crash independently. Auto-pause after 5 consecutive errors with 30-minute cooldown.
+
+<br>
 
 ## Tech Stack
 
-- **TypeScript** + **Node.js**
-- **Playwright** with stealth plugin for web scraping
-- **Anthropic Claude** for AI-powered job filtering
-- **SQLite** + **Prisma ORM** for data storage
-- **Express** + **EJS** for the web dashboard
-- **Winston** for logging
+- **TypeScript** / **Node.js**
+- **Playwright** + stealth plugin (web scraping)
+- **SQLite** + **Prisma** (data storage)
+- **Express** + **EJS** (dashboard)
+- **NVIDIA AI** / Kimi K2.5 (job filtering and scoring)
+- **Winston** (logging)
+
+<br>
+
+## Configuration
+
+All settings live in the SQLite database and are editable through the web UI at `/setup`:
+
+- **Search** - Keywords, locations, geo filters
+- **Profile** - Resume upload, skills, experience, preferences
+- **Scoring** - Seniority targets, skills/tools preferences, dealbreakers, exclusion keywords
+- **Scraper** - Interval, recency window, headless mode
+- **Integrations** - LinkedIn cookies, Telegram bot for notifications
+- **Analytics** - Daily application goals, timezone
+
+The only secret in `.env` is your API key. Everything else is in the database.
