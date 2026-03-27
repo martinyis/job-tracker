@@ -6,6 +6,7 @@ import { router } from './routes';
 import { setupRouter, isConfigured } from './setup-routes';
 import { profileRouter } from './profile-routes';
 import { chatRouter } from './chat-routes';
+import { resumeRouter } from './resume-routes';
 import { resetEnricherStateOnStartup } from '../database/enrichment-queries';
 import { startCleanupInterval } from '../chat/chat-store';
 import { startRejectedJobCleanup } from '../background/rejected-cleanup';
@@ -35,6 +36,7 @@ export function createServer(): express.Application {
   app.use('/', setupRouter);
   app.use('/', profileRouter);
   app.use('/', chatRouter);
+  app.use('/', resumeRouter);
 
   // Redirect to setup if not configured (async check)
   app.use(async (req, res, next) => {

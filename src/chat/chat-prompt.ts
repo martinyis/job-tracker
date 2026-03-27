@@ -6,6 +6,7 @@ import * as path from 'path';
  */
 let personalContextCache: string | null = null;
 let projectDetailsCache: string | null = null;
+let writingSamplesCache: string | null = null;
 
 function loadPersonalContext(): string {
   if (personalContextCache !== null) return personalContextCache;
@@ -27,6 +28,22 @@ function loadProjectDetails(): string {
     projectDetailsCache = '';
   }
   return projectDetailsCache;
+}
+
+function loadWritingSamples(): string {
+  if (writingSamplesCache !== null) return writingSamplesCache;
+  try {
+    const samplesDir = path.join(process.cwd(), 'data', 'writing-samples');
+    const files = fs.readdirSync(samplesDir)
+      .filter((f) => f.endsWith('.txt'))
+      .sort();
+    writingSamplesCache = files
+      .map((f) => fs.readFileSync(path.join(samplesDir, f), 'utf-8'))
+      .join('\n\n---\n\n');
+  } catch {
+    writingSamplesCache = '';
+  }
+  return writingSamplesCache;
 }
 
 /**
@@ -177,6 +194,17 @@ ${loadPersonalContext()}
 
 PROJECT & TECHNICAL DETAILS (use this to answer questions about tech stack, features built, architecture, and technical experience):
 ${loadProjectDetails()}
+
+VOICE & STYLE REFERENCE (study these to understand how the candidate naturally speaks):
+${loadWritingSamples()}
+
+STYLE INSTRUCTIONS:
+- The writing samples above show how the candidate naturally talks — his rhythm, word choices, and personality
+- When answering application questions, write in this same voice but with correct grammar and clean structure
+- Keep his directness, honesty, and casual confidence
+- Keep his tendency to be concrete (real examples, real projects) rather than abstract
+- Do NOT use corporate language, buzzwords, or AI-sounding phrases
+- Sound like a real person who happens to be articulate, not a polished robot
 
 JOB DETAILS:
 Title: ${job.title}

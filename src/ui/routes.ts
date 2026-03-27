@@ -3,6 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   getJobs,
+  getJobsPaginated,
   getJobById,
   updateJobStatus,
   updateJobNotes,
@@ -28,7 +29,7 @@ import { logger } from '../logger';
 
 export const router = Router();
 
-const VALID_STATUSES: JobStatus[] = ['new', 'accepted', 'applied', 'rejected'];
+const VALID_STATUSES: JobStatus[] = ['new', 'accepted', 'applied', 'interviewing', 'rejected'];
 
 function safeParseJsonArray(value: string): string[] {
   try {
@@ -58,15 +59,15 @@ router.get('/', async (req: Request, res: Response) => {
     const statusFilter = req.query.status as JobStatus | undefined;
     const validFilter = statusFilter && VALID_STATUSES.includes(statusFilter) ? statusFilter : undefined;
 
-    const [jobs, stats, agentStatus, enricherStatus] = await Promise.all([
-      getJobs(validFilter),
+    const [paginated, stats, agentStatus, enricherStatus] = await Promise.all([
+      getJobsPaginated({ status: validFilter, limit: 25 }),
       getStats(),
       getAgentStatus(),
       getEnricherStatus(),
     ]);
 
     // Parse JSON fields for each job
-    const parsedJobs = jobs.map((job) => ({
+    const parsedJobs = paginated.jobs.map((job) => ({
       ...job,
       keyMatchesParsed: safeParseJsonArray(job.keyMatches),
       actionItemsParsed: safeParseJsonArray(job.actionItems),
@@ -102,13 +103,22 @@ router.get('/jobs', async (req: Request, res: Response) => {
     const isAll = statusParam === 'all';
     const validFilter = isAll ? undefined : (statusParam && VALID_STATUSES.includes(statusParam as JobStatus) ? statusParam as JobStatus : 'new');
 
-    const [jobs, stats] = await Promise.all([
-      getJobs(validFilter),
+    const sortParam = req.query.sort as string | undefined;
+    const filterParam = req.query.filter as string | undefined;
+    const PAGE_SIZE = 50;
+
+    const [paginated, stats] = await Promise.all([
+      getJobsPaginated({
+        status: validFilter,
+        sortBy: sortParam || 'priority',
+        filter: filterParam || 'all',
+        limit: PAGE_SIZE,
+      }),
       getStats(),
     ]);
 
     // Parse JSON fields for each job
-    const parsedJobs = jobs.map((job) => ({
+    const parsedJobs = paginated.jobs.map((job) => ({
       ...job,
       keyMatchesParsed: safeParseJsonArray(job.keyMatches),
       actionItemsParsed: safeParseJsonArray(job.actionItems),
@@ -118,24 +128,15 @@ router.get('/jobs', async (req: Request, res: Response) => {
       dealbreakerDisplay: job.dealbreaker || '',
     }));
 
-    // Sort: jobs with priority first (by score desc), then jobs without priority (by score desc)
-    // Jobs with no score sink to the bottom of their group
-    parsedJobs.sort((a, b) => {
-      const aHasPriority = a.priority && a.priority !== '' ? 1 : 0;
-      const bHasPriority = b.priority && b.priority !== '' ? 1 : 0;
-      if (aHasPriority !== bHasPriority) return bHasPriority - aHasPriority;
-      const aScore = a.matchScore || 0;
-      const bScore = b.matchScore || 0;
-      if (aScore === 0 && bScore === 0) return 0;
-      if (aScore === 0) return 1;
-      if (bScore === 0) return -1;
-      return bScore - aScore;
-    });
-
     res.render('kanban', {
       jobs: parsedJobs,
       stats,
+      totalJobs: paginated.total,
+      hasMore: paginated.hasMore,
+      pageSize: PAGE_SIZE,
       currentFilter: isAll ? 'all' : (validFilter || 'new'),
+      currentSort: sortParam || 'priority',
+      currentExtraFilter: filterParam || 'all',
       statuses: VALID_STATUSES,
     });
   } catch (error) {
@@ -231,6 +232,53 @@ router.get('/job/:id', async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : String(error),
     });
     res.status(500).json({ error: 'Failed to fetch job' });
+  }
+});
+
+/**
+ * GET /api/jobs — Paginated JSON endpoint for lazy-loading jobs.
+ */
+router.get('/api/jobs', async (req: Request, res: Response) => {
+  try {
+    const statusParam = req.query.status as string | undefined;
+    const isAll = statusParam === 'all' || !statusParam;
+    const validStatus = !isAll && VALID_STATUSES.includes(statusParam as JobStatus) ? statusParam as JobStatus : undefined;
+
+    const sortBy = (req.query.sort as string) || 'priority';
+    const filter = (req.query.filter as string) || 'all';
+    const offset = Math.max(0, parseInt(req.query.offset as string, 10) || 0);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 50));
+
+    const paginated = await getJobsPaginated({
+      status: validStatus,
+      sortBy,
+      filter,
+      offset,
+      limit,
+    });
+
+    const parsedJobs = paginated.jobs.map((job) => ({
+      ...job,
+      keyMatchesParsed: safeParseJsonArray(job.keyMatches),
+      actionItemsParsed: safeParseJsonArray(job.actionItems),
+      redFlagsParsed: safeParseJsonArray(job.redFlags),
+      contactPeopleParsed: safeParseJson(job.contactPeople, []),
+      scoreBreakdownParsed: safeParseJson(job.scoreBreakdown, {}),
+      dealbreakerDisplay: job.dealbreaker || '',
+    }));
+
+    res.json({
+      jobs: parsedJobs,
+      total: paginated.total,
+      offset: paginated.offset,
+      limit: paginated.limit,
+      hasMore: paginated.hasMore,
+    });
+  } catch (error) {
+    logger.error('Error fetching paginated jobs', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: 'Failed to fetch jobs' });
   }
 });
 

@@ -18,12 +18,14 @@
     "generate-skills": "tsx src/generate-skills.ts"
   },
   "dependencies": {
-    "openai": "^4.73.0",
+    "@anthropic-ai/sdk": "^0.80.0",
     "@prisma/client": "^5.22.0",
     "dotenv": "^16.4.7",
     "ejs": "^3.1.10",
     "express": "^4.21.2",
+    "googleapis": "^171.4.0",
     "multer": "^2.0.2",
+    "openai": "^4.73.0",
     "pdf-parse": "^1.1.1",
     "playwright-core": "^1.58.2",
     "playwright-extra": "^4.3.6",

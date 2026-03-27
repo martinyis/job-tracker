@@ -4,12 +4,45 @@ import { logger } from '../logger';
 const CHECK_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 const SPAM_THRESHOLD = 5;
 
+// Companies to always reject regardless of post count (case-insensitive substring match)
+const BLOCKED_COMPANIES = [
+  'Mercor',
+  'Data Annotations',
+];
+
+/**
+ * Rejects jobs from explicitly blocked companies (substring match, case-insensitive).
+ */
+async function rejectBlockedCompanies(): Promise<void> {
+  if (BLOCKED_COMPANIES.length === 0) return;
+
+  const conditions = BLOCKED_COMPANIES.map((name) => ({
+    company: { contains: name },
+  }));
+
+  const result = await prisma.job.updateMany({
+    where: {
+      status: 'new',
+      OR: conditions,
+    },
+    data: { status: 'rejected', rejectedAt: new Date() },
+  });
+
+  if (result.count > 0) {
+    logger.info(`Blocked company filter: rejected ${result.count} jobs`, {
+      blocklist: BLOCKED_COMPANIES,
+    });
+  }
+}
+
 /**
  * Finds companies with 5+ "new" jobs and rejects all their postings.
  * Large companies that mass-post positions are not worth applying to.
  */
 async function rejectSpamCompanies(): Promise<void> {
   try {
+    await rejectBlockedCompanies();
+
     const companyCounts = await prisma.job.groupBy({
       by: ['company'],
       where: { status: 'new' },

@@ -651,6 +651,12 @@ a:hover { color: var(--accent); }
   border: 1px solid var(--blue-border);
 }
 
+.cy-activity-icon.interviewing {
+  background: var(--purple-dim);
+  color: var(--purple-text);
+  border: 1px solid var(--purple-border);
+}
+
 .cy-activity-icon.rejected {
   background: var(--red-dim);
   color: var(--red-text);
@@ -1357,6 +1363,7 @@ a:hover { color: var(--accent); }
 .cy-status.new { background: var(--accent-subtle); color: var(--accent-text); border: 1px solid var(--accent-border); }
 .cy-status.accepted { background: var(--blue-dim); color: var(--blue-text); border: 1px solid var(--blue-border); }
 .cy-status.applied { background: var(--green-dim); color: var(--green-text); border: 1px solid var(--green-border); }
+.cy-status.interviewing { background: var(--purple-dim); color: var(--purple-text); border: 1px solid var(--purple-border); }
 .cy-status.rejected { background: var(--red-dim); color: var(--red-text); border: 1px solid var(--red-border); }
 
 
@@ -2756,6 +2763,17 @@ a:hover { color: var(--accent); }
 .jb-action-btn--applied:hover {
   background: var(--green-dim);
   border-color: var(--green-text);
+}
+
+.jb-action-btn--interviewing {
+  background: transparent;
+  border-color: var(--purple-border);
+  color: var(--purple-text);
+}
+
+.jb-action-btn--interviewing:hover {
+  background: var(--purple-dim);
+  border-color: var(--purple-text);
 }
 
 /* ---- Verdict Card (priority reason + red flags at top) ----- */
@@ -4533,6 +4551,31 @@ a:hover { color: var(--accent); }
   height: 260px;
 }
 
+/* ---- Load More Button (Job List) ----------------------------- */
+.jb-load-more {
+  padding: var(--sp-3) var(--sp-4);
+  display: flex;
+  justify-content: center;
+}
+
+.jb-load-more-btn {
+  width: 100%;
+  padding: var(--sp-3) var(--sp-4);
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all var(--t-fast) var(--ease);
+}
+
+.jb-load-more-btn:hover {
+  color: var(--accent-text);
+  border-color: var(--accent-border);
+  background: var(--accent-subtle);
+}
+
 /* Analytics responsive */
 @media (max-width: 1024px) {
   .an-goal-section { flex-direction: column; }
@@ -4546,4 +4589,110 @@ a:hover { color: var(--accent); }
     flex-direction: column;
     text-align: center;
   }
+}
+
+/* ---- Resume Optimizer ---------------------------------------- */
+.jb-resume-action-row {
+  margin-top: var(--sp-2);
+}
+
+.jb-resume-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.85rem;
+}
+
+.jb-resume-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.jb-resume-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: jb-spin 0.8s linear infinite;
+}
+
+@keyframes jb-spin {
+  to { transform: rotate(360deg); }
+}
+
+.jb-resume-item {
+  padding: var(--sp-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  margin-bottom: var(--sp-2);
+  background: var(--bg-card);
+}
+
+.jb-resume-item-top {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-2);
+}
+
+.jb-resume-download {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-sm);
+  background: var(--accent-subtle);
+  color: var(--accent-text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid var(--accent-border);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.jb-resume-download:hover {
+  background: var(--accent-glow);
+}
+
+.jb-resume-doc-link {
+  font-size: 0.8rem;
+  color: var(--blue-text);
+  text-decoration: none;
+}
+
+.jb-resume-doc-link:hover {
+  text-decoration: underline;
+}
+
+.jb-resume-notes {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-bottom: var(--sp-1);
+}
+
+.jb-resume-sections {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.jb-resume-processing {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.85rem;
+  color: var(--accent-text);
+}
+
+.jb-resume-failed {
+  font-size: 0.8rem;
+  color: var(--red-text);
+}
+
+.jb-resume-date {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: var(--sp-1);
 }

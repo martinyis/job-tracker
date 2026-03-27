@@ -1,7 +1,7 @@
 import { prisma } from './client';
 import { logger } from '../logger';
 
-export type JobStatus = 'new' | 'accepted' | 'applied' | 'rejected';
+export type JobStatus = 'new' | 'accepted' | 'applied' | 'interviewing' | 'rejected';
 
 export async function jobExistsBatch(linkedinIds: string[]): Promise<Set<string>> {
   if (linkedinIds.length === 0) return new Set();
@@ -48,6 +48,99 @@ export async function saveJobMinimal(input: JobMinimalInput) {
     logger.error('Failed to save job', { linkedinId: input.linkedinId, error });
     throw error;
   }
+}
+
+// ─── Paginated Jobs Query ─────────────────────────────────
+
+export interface PaginatedJobsParams {
+  status?: JobStatus;
+  sortBy?: string;
+  filter?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface PaginatedJobsResult {
+  jobs: Awaited<ReturnType<typeof prisma.job.findMany>>;
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+export async function getJobsPaginated(params: PaginatedJobsParams = {}): Promise<PaginatedJobsResult> {
+  const {
+    status,
+    sortBy = 'newest',
+    filter = 'all',
+    offset = 0,
+    limit = 50,
+  } = params;
+
+  // Build where clause
+  const where: Record<string, unknown> = {};
+  if (status) where.status = status;
+
+  // Sub-filters
+  if (filter === 'today') {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    where.createdAt = { gte: todayStart };
+  } else if (filter === 'urgent') {
+    where.priority = 'urgent';
+  } else if (filter === 'high+') {
+    where.priority = { in: ['urgent', 'high'] };
+  } else if (filter === 'enriched') {
+    where.enrichmentStatus = 'enriched';
+  } else if (filter === 'pending') {
+    where.enrichmentStatus = 'pending';
+  } else if (filter === 'dealbreaker') {
+    where.dealbreaker = { not: '' };
+  } else if (filter === 'no-dealbreaker') {
+    where.dealbreaker = '';
+  }
+
+  // Build orderBy
+  let orderBy: Record<string, string>[] = [{ createdAt: 'desc' }];
+  if (sortBy === 'oldest') {
+    orderBy = [{ createdAt: 'asc' }];
+  } else if (sortBy === 'score-desc') {
+    orderBy = [{ matchScore: 'desc' }, { createdAt: 'desc' }];
+  } else if (sortBy === 'score-asc') {
+    orderBy = [{ matchScore: 'asc' }, { createdAt: 'desc' }];
+  } else if (sortBy === 'company') {
+    orderBy = [{ company: 'asc' }, { createdAt: 'desc' }];
+  }
+  // 'priority' and 'newest' use default (createdAt desc); priority does JS post-sort
+
+  const [jobs, total] = await Promise.all([
+    prisma.job.findMany({
+      where,
+      orderBy,
+      skip: offset,
+      take: limit,
+    }),
+    prisma.job.count({ where }),
+  ]);
+
+  // Priority sort: JS post-sort since priority is a string enum, not easily sortable in SQL
+  if (sortBy === 'priority') {
+    const priorityRank: Record<string, number> = { urgent: 1, high: 2, normal: 3, low: 4, '': 5 };
+    jobs.sort((a, b) => {
+      const pa = priorityRank[a.priority] ?? 5;
+      const pb = priorityRank[b.priority] ?? 5;
+      if (pa !== pb) return pa - pb;
+      return (b.matchScore || 0) - (a.matchScore || 0);
+    });
+  }
+
+  return {
+    jobs,
+    total,
+    offset,
+    limit,
+    hasMore: offset + jobs.length < total,
+  };
 }
 
 export async function getJobs(status?: JobStatus) {

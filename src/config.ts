@@ -39,6 +39,18 @@ export const config = {
     botToken: '',
     chatId: '',
   },
+  anthropic: {
+    apiKey: '',
+    model: 'claude-sonnet-4-6',
+    maxTokens: 8192,
+    temperature: 0.3,
+  },
+  google: {
+    serviceAccountEmail: '',
+    serviceAccountPrivateKey: '',
+    resumeTemplateDocId: '',
+    driveFolderId: '',
+  },
 };
 
 /**
@@ -50,6 +62,12 @@ export async function initConfig(): Promise<void> {
   config.nvidia.apiKey = process.env.NVIDIA_API_KEY || '';
   config.telegram.botToken = process.env.TELEGRAM_BOT_TOKEN || '';
   config.telegram.chatId = process.env.TELEGRAM_CHAT_ID || '';
+
+  config.anthropic.apiKey = process.env.ANTHROPIC_API_KEY || '';
+  config.google.serviceAccountEmail = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '';
+  config.google.serviceAccountPrivateKey = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  config.google.resumeTemplateDocId = process.env.GOOGLE_RESUME_TEMPLATE_DOC_ID || '';
+  config.google.driveFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || '';
 
   const settings = await getOrCreateSettings();
 

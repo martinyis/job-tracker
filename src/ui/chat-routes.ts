@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config';
 import { logger } from '../logger';
 import { getJobById } from '../database/queries';
@@ -19,11 +19,8 @@ export const chatRouter = Router();
 const MAX_MESSAGES = 40;
 const AI_TIMEOUT_MS = 30_000;
 
-function createClient(): OpenAI {
-  return new OpenAI({
-    apiKey: config.nvidia.apiKey,
-    baseURL: config.nvidia.baseURL,
-  });
+function createClient(): Anthropic {
+  return new Anthropic({ apiKey: config.anthropic.apiKey });
 }
 
 /**
@@ -57,8 +54,8 @@ chatRouter.post('/api/chat/:jobId', async (req: Request, res: Response) => {
       return;
     }
 
-    if (!config.nvidia.apiKey) {
-      res.status(503).json({ error: 'AI not configured. Add NVIDIA_API_KEY to your .env file.' });
+    if (!config.anthropic.apiKey) {
+      res.status(503).json({ error: 'AI not configured. Add ANTHROPIC_API_KEY to your .env file.' });
       return;
     }
 
@@ -101,9 +98,17 @@ chatRouter.post('/api/chat/:jobId', async (req: Request, res: Response) => {
 
     const client = createClient();
 
-    const aiPromise = client.chat.completions.create({
-      model: config.nvidia.model,
-      messages: session.messages,
+    // Anthropic API: system prompt is a separate param, messages are user/assistant only
+    const systemPrompt = session.messages[0]?.content || '';
+    const chatMessages = session.messages.slice(1).map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }));
+
+    const aiPromise = client.messages.create({
+      model: config.anthropic.model,
+      system: systemPrompt,
+      messages: chatMessages,
       max_tokens: 1024,
       temperature: 0.7,
     });
@@ -113,7 +118,8 @@ chatRouter.post('/api/chat/:jobId', async (req: Request, res: Response) => {
     );
 
     const response = await Promise.race([aiPromise, timeoutPromise]);
-    const content = response.choices[0]?.message?.content;
+    const firstBlock = response.content[0];
+    const content = firstBlock?.type === 'text' ? firstBlock.text : null;
 
     if (!content) {
       res.status(500).json({ error: 'Failed to get AI response' });

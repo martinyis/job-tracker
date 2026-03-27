@@ -26,7 +26,7 @@ model Job {
   keyMatches  String   @default("[]") // JSON array of matched skills/experience
 
   // Application Tracking
-  status      String   @default("new") // new/accepted/applied/rejected
+  status      String   @default("new") // new/accepted/applied/interviewing/rejected
   notes       String?
 
   // Scoring
@@ -54,6 +54,9 @@ model Job {
   appliedAt   DateTime?
   rejectedAt  DateTime?
 
+  // Resume optimization
+  optimizedResumes OptimizedResume[]
+
   // Metadata
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -64,6 +67,25 @@ model Job {
   @@index([priority])
   @@index([appliedAt])
   @@index([rejectedAt])
+}
+
+model OptimizedResume {
+  id                String   @id @default(uuid())
+  jobId             String
+  job               Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  googleDocId       String   @default("")
+  googleDocUrl      String   @default("")
+  pdfFilename       String   @default("")
+  pdfStoragePath    String   @default("")
+  pdfSizeBytes      Int      @default(0)
+  status            String   @default("pending")  // pending/processing/completed/failed
+  errorMessage      String   @default("")
+  sectionsModified  String   @default("[]")
+  optimizationNotes String   @default("")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([jobId])
 }
 
 model ScraperState {
