@@ -22,6 +22,10 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export
             </button>
+            <button class="cy-export-btn jb-add-btn" onclick="openManualJobModal()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Job
+            </button>
           </div>
         </div>
 
@@ -998,6 +1002,87 @@
         })
         .catch(function() {
           container.innerHTML = '';
+        });
+    }
+  </script>
+
+  <!-- Manual Job Entry Modal -->
+  <div class="jb-manual-overlay" id="manualJobModal" onclick="if(event.target===this)closeManualJobModal()">
+    <div class="jb-manual-card">
+      <div class="jb-manual-header">
+        <h2>Add Job Manually</h2>
+        <button class="jb-manual-close" onclick="closeManualJobModal()">&times;</button>
+      </div>
+      <form id="manualJobForm" onsubmit="submitManualJob(event)">
+        <div class="jb-manual-field">
+          <label for="manualDesc">Job Description <span style="color:var(--red-text)">*</span></label>
+          <textarea id="manualDesc" name="description" rows="8" placeholder="Paste the job description here..." required></textarea>
+        </div>
+        <div class="jb-manual-row">
+          <div class="jb-manual-field">
+            <label for="manualTitle">Title</label>
+            <input type="text" id="manualTitle" name="title" placeholder="e.g. Senior Frontend Engineer">
+          </div>
+          <div class="jb-manual-field">
+            <label for="manualCompany">Company</label>
+            <input type="text" id="manualCompany" name="company" placeholder="e.g. Acme Corp">
+          </div>
+        </div>
+        <div class="jb-manual-field">
+          <label for="manualLink">Link</label>
+          <input type="url" id="manualLink" name="link" placeholder="https://...">
+        </div>
+        <div class="jb-manual-actions">
+          <button type="button" class="jb-manual-cancel" onclick="closeManualJobModal()">Cancel</button>
+          <button type="submit" class="jb-manual-submit" id="manualSubmitBtn">Add Job</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function openManualJobModal() {
+      document.getElementById('manualJobModal').classList.add('active');
+      document.getElementById('manualDesc').focus();
+    }
+
+    function closeManualJobModal() {
+      document.getElementById('manualJobModal').classList.remove('active');
+      document.getElementById('manualJobForm').reset();
+    }
+
+    function submitManualJob(e) {
+      e.preventDefault();
+      var btn = document.getElementById('manualSubmitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Adding...';
+
+      var body = {
+        description: document.getElementById('manualDesc').value.trim(),
+        title: document.getElementById('manualTitle').value.trim() || undefined,
+        company: document.getElementById('manualCompany').value.trim() || undefined,
+        link: document.getElementById('manualLink').value.trim() || undefined,
+      };
+
+      fetch('/api/jobs/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+        .then(function(res) {
+          if (!res.ok) throw new Error('Failed to add job');
+          return res.json();
+        })
+        .then(function() {
+          closeManualJobModal();
+          window.location.reload();
+        })
+        .catch(function(err) {
+          alert(err.message || 'Failed to add job');
+        })
+        .finally(function() {
+          btn.disabled = false;
+          btn.textContent = 'Add Job';
         });
     }
   </script>

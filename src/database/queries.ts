@@ -50,6 +50,40 @@ export async function saveJobMinimal(input: JobMinimalInput) {
   }
 }
 
+// ─── Manual Job Entry ─────────────────────────────────────
+
+export interface ManualJobInput {
+  description: string;
+  title?: string;
+  company?: string;
+  link?: string;
+}
+
+export async function saveManualJob(input: ManualJobInput) {
+  const linkedinId = `manual-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const job = await prisma.job.create({
+    data: {
+      linkedinId,
+      title: input.title || 'Manual Entry',
+      company: input.company || 'Unknown',
+      description: input.description,
+      link: input.link || '',
+      postedDate: 'Just now',
+      status: 'new',
+      enrichmentStatus: 'skipped',
+    },
+  });
+
+  logger.info('Saved manual job entry', {
+    id: job.id,
+    title: job.title,
+    company: job.company,
+  });
+
+  return job;
+}
+
 // ─── Paginated Jobs Query ─────────────────────────────────
 
 export interface PaginatedJobsParams {

@@ -15,6 +15,7 @@ import {
   getTodayAppliedCount,
   getWeeklyAppliedCount,
   getAverageDailyApplied,
+  saveManualJob,
   JobStatus,
 } from '../database/queries';
 import { getEnrichmentQueueSize, getJobForTestNotification } from '../database/enrichment-queries';
@@ -279,6 +280,39 @@ router.get('/api/jobs', async (req: Request, res: Response) => {
       error: error instanceof Error ? error.message : String(error),
     });
     res.status(500).json({ error: 'Failed to fetch jobs' });
+  }
+});
+
+/**
+ * POST /api/jobs/manual — Create a job from manual entry.
+ */
+router.post('/api/jobs/manual', async (req: Request, res: Response) => {
+  try {
+    const { description, title, company, link } = req.body as {
+      description?: string;
+      title?: string;
+      company?: string;
+      link?: string;
+    };
+
+    if (!description || !description.trim()) {
+      res.status(400).json({ error: 'Description is required' });
+      return;
+    }
+
+    const job = await saveManualJob({
+      description: description.trim(),
+      title: title?.trim() || undefined,
+      company: company?.trim() || undefined,
+      link: link?.trim() || undefined,
+    });
+
+    res.json(job);
+  } catch (error) {
+    logger.error('Error creating manual job', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.status(500).json({ error: 'Failed to create job' });
   }
 });
 

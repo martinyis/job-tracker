@@ -2320,6 +2320,148 @@ a:hover { color: var(--accent); }
   align-items: center;
 }
 
+.jb-add-btn {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.jb-add-btn:hover {
+  background: var(--accent-hover);
+  color: #000;
+  border-color: var(--accent-hover);
+}
+
+/* ---- Manual Job Modal --------------------------------------- */
+.jb-manual-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: var(--bg-overlay);
+  z-index: 600;
+  justify-content: center;
+  align-items: center;
+}
+.jb-manual-overlay.active {
+  display: flex;
+}
+
+.jb-manual-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-lg);
+  width: 540px;
+  max-width: 92vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--sp-6);
+  animation: cy-fadeIn 0.2s var(--ease);
+}
+
+.jb-manual-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--sp-5);
+}
+.jb-manual-header h2 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.jb-manual-close {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  border-radius: var(--r-sm);
+}
+.jb-manual-close:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+.jb-manual-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--sp-4);
+  flex: 1;
+}
+.jb-manual-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.jb-manual-field textarea,
+.jb-manual-field input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-sm);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  padding: 10px 12px;
+  resize: vertical;
+  transition: border-color var(--t-fast) var(--ease);
+}
+.jb-manual-field textarea:focus,
+.jb-manual-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.jb-manual-row {
+  display: flex;
+  gap: var(--sp-4);
+}
+
+.jb-manual-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+}
+.jb-manual-cancel {
+  padding: 8px 18px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+.jb-manual-cancel:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.jb-manual-submit {
+  padding: 8px 22px;
+  border-radius: var(--r-sm);
+  border: none;
+  background: var(--accent);
+  color: #000;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: background var(--t-fast) var(--ease);
+}
+.jb-manual-submit:hover {
+  background: var(--accent-hover);
+}
+.jb-manual-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Shrink filters for compact fit */
 .cy-page--jobs .cy-filters {
   margin-bottom: var(--sp-4);
