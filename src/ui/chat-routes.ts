@@ -78,6 +78,7 @@ chatRouter.post('/api/chat/:jobId', async (req: Request, res: Response) => {
           missionStatement: profile.missionStatement,
           skills: profile.skills,
           workExperience: profile.workExperience.slice(0, 5),
+          contextDocuments: profile.contextDocuments.map((d) => ({ slug: d.slug, content: d.content })),
         },
         job,
       );

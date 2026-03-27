@@ -18,6 +18,7 @@ import {
   getDocuments,
   addDocument,
   deleteDocument,
+  upsertContextDocument,
   parseJsonArray,
   toJsonArray,
 } from '../database/profile-queries';
@@ -407,4 +408,23 @@ profileRouter.post('/profile/document/:id/primary', async (req: Request, res: Re
   }
 });
 
+// ─── Context Documents (AI Context tab) ──────────────────
 
+profileRouter.patch('/api/profile/context-document/:slug', async (req: Request, res: Response) => {
+  try {
+    const slug = req.params.slug as string;
+    const { content } = req.body as { content: string };
+    if (typeof content !== 'string') {
+      res.json({ ok: false, error: 'Content must be a string' });
+      return;
+    }
+    await upsertContextDocument(slug, content);
+    logger.info('Context document updated', { slug, length: content.length });
+    res.json({ ok: true });
+  } catch (error) {
+    logger.error('Failed to update context document', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.json({ ok: false, error: 'Failed to save' });
+  }
+});

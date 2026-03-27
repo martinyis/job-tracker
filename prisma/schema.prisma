@@ -160,6 +160,7 @@ model UserProfile {
   education          Education[]
   skills             Skill[]
   documents          Document[]
+  contextDocuments   ContextDocument[]
 
   updatedAt DateTime @updatedAt
 }
@@ -232,6 +233,23 @@ model Document {
 
   uploadedAt DateTime @default(now())
 
+  @@index([profileId])
+}
+
+model ContextDocument {
+  id        String      @id @default(uuid())
+  profileId String      @default("singleton")
+  profile   UserProfile @relation(fields: [profileId], references: [id])
+
+  name      String      // "Personal Context", "Project Details", "Voice Samples"
+  slug      String      // "personal-context", "project-details", "voice-samples"
+  content   String      @default("")
+  sortOrder Int         @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, slug])
   @@index([profileId])
 }
 

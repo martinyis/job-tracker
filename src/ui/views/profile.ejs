@@ -30,6 +30,7 @@
           <a href="#education" class="cy-profile-nav-link">Education</a>
           <a href="#skills" class="cy-profile-nav-link">Skills</a>
           <a href="#documents" class="cy-profile-nav-link">Documents</a>
+          <a href="#ai-context" class="cy-profile-nav-link">AI Context</a>
         </div>
 
         <!-- PERSONAL INFO -->
@@ -351,6 +352,39 @@
           </div>
         </section>
 
+        <!-- AI CONTEXT -->
+        <section class="cy-section" id="ai-context">
+          <div class="cy-section-header-row">
+            <h2>AI Context</h2>
+            <span class="cy-save-indicator" id="context-save-indicator"></span>
+          </div>
+          <p class="cy-section-desc">These documents give the chat AI deep context about you. Changes save automatically on blur.</p>
+
+          <div class="cy-section-body">
+            <%
+              var contextDocs = [
+                { slug: 'personal-context', name: 'Personal Context', desc: 'Background, personality, motivations, and behavioral stories the AI uses to sound like you.' },
+                { slug: 'project-details', name: 'Project Details', desc: 'Technical details about projects you have built. The AI references this for tech stack and architecture questions.' },
+                { slug: 'voice-samples', name: 'Voice Samples', desc: 'Speech samples showing your exact voice, word choices, and how you connect thoughts.' },
+              ];
+              var contextMap = {};
+              if (profile.contextDocuments) {
+                profile.contextDocuments.forEach(function(d) { contextMap[d.slug] = d.content || ''; });
+              }
+            %>
+            <% contextDocs.forEach(function(doc) { %>
+              <div class="cy-field-group full-width cy-context-doc" data-slug="<%= doc.slug %>" style="margin-bottom: 24px;">
+                <div class="cy-inline-label"><%= doc.name %></div>
+                <p class="cy-hint" style="margin: 0 0 8px 0; font-size: 12px;"><%= doc.desc %></p>
+                <textarea class="cy-ghost-textarea cy-context-textarea" rows="12" placeholder="Paste or type content here..."><%= contextMap[doc.slug] || '' %></textarea>
+                <div class="cy-hint" style="margin-top: 4px; font-size: 11px;">
+                  <span class="cy-context-charcount"><%= (contextMap[doc.slug] || '').length %></span> characters
+                </div>
+              </div>
+            <% }); %>
+          </div>
+        </section>
+
       </div>
     </main>
   </div>
@@ -412,6 +446,52 @@
             input.value = lastSaved;
             input.blur();
           }
+        });
+      });
+    })();
+
+    // ── Auto-save for AI Context Documents ──
+    (function() {
+      var indicator = document.getElementById('context-save-indicator');
+      var docs = document.querySelectorAll('.cy-context-doc[data-slug]');
+      var hideTimer = null;
+
+      function flash(state, text) {
+        indicator.textContent = text;
+        indicator.className = 'cy-save-indicator visible ' + state;
+        clearTimeout(hideTimer);
+        if (state !== 'saving') {
+          hideTimer = setTimeout(function() {
+            indicator.classList.remove('visible');
+          }, 2000);
+        }
+      }
+
+      docs.forEach(function(group) {
+        var textarea = group.querySelector('.cy-context-textarea');
+        var charcount = group.querySelector('.cy-context-charcount');
+        var slug = group.getAttribute('data-slug');
+        var lastSaved = textarea.value;
+
+        textarea.addEventListener('input', function() {
+          charcount.textContent = textarea.value.length;
+        });
+
+        textarea.addEventListener('blur', function() {
+          var val = textarea.value;
+          if (val === lastSaved) return;
+          lastSaved = val;
+          charcount.textContent = val.length;
+
+          flash('saving', 'Saving...');
+          fetch('/api/profile/context-document/' + slug, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: val })
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(d) { flash(d.ok ? 'saved' : 'error', d.ok ? 'Saved' : 'Error'); })
+          .catch(function() { flash('error', 'Error'); });
         });
       });
     })();

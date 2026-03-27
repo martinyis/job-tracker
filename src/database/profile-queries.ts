@@ -77,6 +77,7 @@ const PROFILE_INCLUDE = {
   education: { orderBy: { sortOrder: 'asc' } },
   skills: true,
   documents: true,
+  contextDocuments: { orderBy: { sortOrder: 'asc' } },
 } satisfies Prisma.UserProfileInclude;
 
 const CACHE_INVALIDATING_FIELDS: (keyof ProfileUpdate)[] = [
@@ -376,4 +377,31 @@ export async function getPrimaryResume() {
   return prisma.document.findFirst({
     where: { profileId: 'singleton', type: 'resume', isPrimary: true },
   });
+}
+
+// ─── Context Documents ───────────────────────────────────
+
+export async function getContextDocuments() {
+  return prisma.contextDocument.findMany({
+    where: { profileId: 'singleton' },
+    orderBy: { sortOrder: 'asc' },
+  });
+}
+
+export async function upsertContextDocument(slug: string, content: string) {
+  return prisma.contextDocument.upsert({
+    where: { profileId_slug: { profileId: 'singleton', slug } },
+    update: { content },
+    create: {
+      profileId: 'singleton',
+      name: slug.split('-').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+      slug,
+      content,
+      sortOrder: 0,
+    },
+  });
+}
+
+export async function deleteContextDocument(id: string) {
+  await prisma.contextDocument.delete({ where: { id } });
 }
