@@ -38,6 +38,7 @@ export interface ExtractedSignals {
   ghostListingSignals: boolean;
   repostSignal: boolean;
   isEntryLevel: boolean;
+  resumeType: 'general' | 'ai' | 'mobile' | 'frontend';
 }
 
 export interface ScoreBreakdown {

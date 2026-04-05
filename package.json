@@ -24,6 +24,8 @@
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "googleapis": "^171.4.0",
+    "imapflow": "^1.2.18",
+    "mailparser": "^3.9.6",
     "multer": "^2.0.2",
     "openai": "^4.73.0",
     "pdf-parse": "^1.1.1",
@@ -34,6 +36,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
+    "@types/mailparser": "^3.4.6",
     "@types/multer": "^2.0.0",
     "@types/node": "^22.10.2",
     "@types/pdf-parse": "^1.1.4",

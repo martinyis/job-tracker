@@ -23,6 +23,7 @@ export interface EnrichmentAnalysis {
 
 const VALID_WORK_ARRANGEMENTS = ['remote', 'hybrid', 'onsite', 'unknown'] as const;
 const VALID_APP_METHODS = ['easyApply', 'externalSite', 'directReferral', 'unknown'] as const;
+const VALID_RESUME_TYPES = ['general', 'ai', 'mobile', 'frontend'] as const;
 
 function createClient(): OpenAI {
   return new OpenAI({
@@ -158,6 +159,7 @@ function validateResponse(parsed: any): EnrichmentAnalysis {
       ghostListingSignals: ensureBool(ex.ghostListingSignals),
       repostSignal: ensureBool(ex.repostSignal),
       isEntryLevel: ensureBool(ex.isEntryLevel),
+      resumeType: ensureEnum(ex.resumeType, VALID_RESUME_TYPES, 'general'),
     },
     analysis: {
       matchReason: typeof an.matchReason === 'string' ? an.matchReason : '',
@@ -201,6 +203,7 @@ function getDefaultAnalysis(): EnrichmentAnalysis {
       ghostListingSignals: false,
       repostSignal: false,
       isEntryLevel: false,
+      resumeType: 'general',
     },
     analysis: {
       matchReason: '',

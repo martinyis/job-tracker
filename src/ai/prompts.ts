@@ -295,6 +295,11 @@ Extract these boolean/string signals from the posting:
 - ghostListingSignals: true if multiple signs of inactivity (huge applicants + vague description + no poster info)
 - repostSignal: true if clear indicators this is a recycled/re-posted listing
 - isEntryLevel: true if the role is explicitly entry-level, junior, new grad, or requires 0-2 years of experience
+- resumeType: classify which resume variant fits this role best. Priority: AI > Mobile > Frontend > General.
+  - "ai" — role centers on AI/ML, LLMs, agents, prompt engineering, NLP, computer vision
+  - "mobile" — role centers on React Native, Expo, cross-platform mobile development
+  - "frontend" — pure frontend role (React, Next.js, Vue, CSS, design systems) with little backend
+  - "general" — full-stack, backend, platform, or doesn't clearly fit above. Default when in doubt.
 
 Also provide human-readable analysis:
 - matchReason: 2-3 sentence summary of overall fit
@@ -357,7 +362,8 @@ Respond with ONLY valid JSON (no markdown, no code fences):
     "highApplicantCount": false,
     "ghostListingSignals": false,
     "repostSignal": false,
-    "isEntryLevel": false
+    "isEntryLevel": false,
+    "resumeType": "general"
   },
   "analysis": {
     "matchReason": "",

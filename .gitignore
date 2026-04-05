@@ -15,3 +15,7 @@ data/project-details.md
 data/optimized-resumes/
 data/writing-samples/
 .DS_Store
+scripts/fetch-emails.ts
+data/emails/
+data/RESUME-FRONTEND.md
+data/resume-rules.md

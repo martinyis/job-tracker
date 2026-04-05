@@ -370,6 +370,7 @@ async function enrichmentLoop(): Promise<void> {
         contactPeople: jobDetail.contactPeople,
         scoreBreakdown,
         dealbreaker: triggeredDealbreaker,
+        resumeType: analysis.extracted.resumeType,
         ...(triggeredDealbreaker ? { status: 'rejected' } : {}),
       });
 

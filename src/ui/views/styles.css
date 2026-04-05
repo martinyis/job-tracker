@@ -4736,6 +4736,45 @@ a:hover { color: var(--accent); }
 /* ---- Resume Optimizer ---------------------------------------- */
 .jb-resume-action-row {
   margin-top: var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.jb-resume-type-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border: 1px solid;
+}
+
+.jb-resume-type--general {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+
+.jb-resume-type--ai {
+  background: var(--purple-dim);
+  color: var(--purple-text);
+  border-color: var(--purple-border);
+}
+
+.jb-resume-type--mobile {
+  background: var(--green-dim);
+  color: var(--green-text);
+  border-color: var(--green-border);
+}
+
+.jb-resume-type--frontend {
+  background: var(--blue-dim);
+  color: var(--blue-text);
+  border-color: var(--blue-border);
 }
 
 .jb-resume-btn {

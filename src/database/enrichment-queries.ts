@@ -117,6 +117,7 @@ export interface EnrichmentData {
   contactPeople: Array<{ name: string; title: string; profileUrl: string }>;
   scoreBreakdown: object;
   dealbreaker: string;
+  resumeType?: string;
   status?: string;
 }
 
@@ -143,6 +144,7 @@ export async function updateJobEnrichment(id: string, data: EnrichmentData) {
       contactPeople: JSON.stringify(data.contactPeople),
       scoreBreakdown: JSON.stringify(data.scoreBreakdown),
       dealbreaker: data.dealbreaker,
+      ...(data.resumeType ? { resumeType: data.resumeType } : {}),
       ...(data.status ? { status: data.status } : {}),
       ...(data.status === 'rejected' ? { rejectedAt: new Date() } : {}),
       enrichmentStatus: 'enriched',

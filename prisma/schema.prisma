@@ -49,6 +49,7 @@ model Job {
   postedByTitle     String   @default("")           // poster title/role
   postedByProfile   String   @default("")           // poster LinkedIn profile URL
   contactPeople     String   @default("[]")         // JSON array of {name, title, profileUrl}
+  resumeType        String   @default("")           // general/ai/mobile/frontend — which resume fits best
 
   // Status timestamps (for analytics)
   appliedAt   DateTime?

@@ -1,5 +1,5 @@
-import { prisma } from '../database/client';
-import { logger } from '../logger';
+import { prisma } from "../database/client";
+import { logger } from "../logger";
 
 const CLEANUP_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
@@ -9,13 +9,15 @@ const CLEANUP_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 async function deleteRejectedJobs(): Promise<void> {
   try {
     const result = await prisma.job.deleteMany({
-      where: { status: 'rejected' },
+      where: { status: "rejected" },
     });
     if (result.count > 0) {
-      logger.info(`Rejected job cleanup: deleted ${result.count} rejected jobs`);
+      logger.info(
+        `Rejected job cleanup: deleted ${result.count} rejected jobs`,
+      );
     }
   } catch (error) {
-    logger.error('Rejected job cleanup failed', { error });
+    logger.error("Rejected job cleanup failed", { error });
   }
 }
 
