@@ -77,7 +77,7 @@ function preFilterByKeywords(jobs: JobForFiltering[], excludeKeywords: string[])
 }
 
 /** Companies that are job-board spam or aggregators — always rejected. */
-const BLACKLISTED_COMPANIES = ['remotehunter', 'jobright.ai', 'wire'];
+const BLACKLISTED_COMPANIES = ['remotehunter', 'jobright.ai', 'wire', 'turing', 'data annotation'];
 
 /** Title keywords that indicate unpaid positions — always rejected. */
 const UNPAID_KEYWORDS = ['unpaid', 'volunteer', 'no pay', 'uncompensated'];
