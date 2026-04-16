@@ -15,6 +15,8 @@ export interface JobForFiltering {
   linkedinId: string;
   title: string;
   company: string;
+  /** Location text from the card. Passed to the AI so it can hard-reject non-US jobs. */
+  location?: string;
 }
 
 /** Profile preferences passed into filtering functions */
@@ -317,7 +319,7 @@ export async function filterRelevantJobs(
   try {
     // Log the jobs being sent to the AI for debugging
     logger.info(`AI filtering ${afterDedup.length} jobs (strict mode)...`, {
-      jobsSentToAI: afterDedup.map(j => ({ id: j.linkedinId, title: j.title, company: j.company })),
+      jobsSentToAI: afterDedup.map(j => ({ id: j.linkedinId, title: j.title, company: j.company, location: j.location || '' })),
     });
     const callStart = Date.now();
 

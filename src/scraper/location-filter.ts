@@ -55,22 +55,24 @@ const US_STATE_ABBREVS = new Set([
  */
 const NON_US_COUNTRIES = [
   // A
-  "afghanistan", "albania", "algeria", "andorra", "angola", "antigua",
-  "argentina", "armenia", "australia", "austria", "azerbaijan",
+  "afghanistan", "albania", "algeria", "allemagne", "andorra", "angola",
+  "antigua", "argentina", "armenia", "australia", "austria", "azerbaijan",
   // B
   "bahamas", "bahrain", "bangladesh", "barbados", "barbuda", "belarus",
-  "belgium", "belize", "benin", "bhutan", "bolivia", "bosnia", "botswana",
-  "brasil", "brazil", "brunei", "bulgaria", "burkina faso", "burma", "burundi",
+  "belgique", "belgium", "belize", "benin", "bhutan", "bolivia", "bosnia",
+  "botswana", "brasil", "brazil", "brunei", "bulgaria", "burkina faso",
+  "burma", "burundi",
   // C
   "cambodia", "cameroon", "canada", "cape verde", "central african republic",
-  "chad", "chile", "china", "colombia", "comoros", "congo", "costa rica",
-  "croatia", "cuba", "cyprus", "czechia", "czech republic", "côte d'ivoire",
+  "chad", "chile", "chine", "china", "colombia", "comoros", "congo",
+  "costa rica", "croatia", "cuba", "cyprus", "czechia", "czech republic",
+  "côte d'ivoire", "corée",
   // D
   "denmark", "deutschland", "djibouti", "dominica", "dominican republic",
   // E
-  "east timor", "ecuador", "egypt", "el salvador", "england",
-  "equatorial guinea", "eritrea", "españa", "espana", "estonia", "eswatini",
-  "ethiopia",
+  "east timor", "ecuador", "egypt", "egypte", "égypte", "el salvador",
+  "england", "equatorial guinea", "eritrea", "españa", "espana", "espagne",
+  "estonia", "eswatini", "ethiopia",
   // F
   "fiji", "finland", "france",
   // G
@@ -79,10 +81,10 @@ const NON_US_COUNTRIES = [
   // H
   "haiti", "herzegovina", "holland", "honduras", "hong kong", "hungary",
   // I
-  "iceland", "india", "indonesia", "iran", "iraq", "ireland", "israel",
-  "italia", "italy", "ivory coast",
+  "iceland", "inde", "india", "indonesia", "iran", "iraq", "ireland", "israel",
+  "italia", "italie", "italy", "ivory coast",
   // J
-  "jamaica", "japan", "jordan",
+  "jamaica", "japan", "japon", "jordan",
   // K
   "kazakhstan", "kenya", "kiribati", "korea", "kosovo", "kuwait", "kyrgyzstan",
   // L
@@ -90,9 +92,9 @@ const NON_US_COUNTRIES = [
   "lithuania", "luxembourg",
   // M
   "macao", "macau", "macedonia", "madagascar", "malawi", "malaysia", "maldives",
-  "mali", "malta", "marshall islands", "mauritania", "mauritius", "mexico",
-  "méxico", "micronesia", "moldova", "monaco", "mongolia", "montenegro",
-  "morocco", "mozambique", "myanmar",
+  "mali", "malta", "marshall islands", "maroc", "mauritania", "mauritius",
+  "mexico", "méxico", "mexique", "micronesia", "moldova", "monaco", "mongolia",
+  "montenegro", "morocco", "mozambique", "myanmar",
   // N
   "namibia", "nauru", "nepal", "netherlands", "new zealand", "nicaragua",
   "niger", "nigeria", "north korea", "north macedonia", "northern ireland",
@@ -111,12 +113,12 @@ const NON_US_COUNTRIES = [
   "saudi arabia", "scotland", "senegal", "serbia", "seychelles",
   "sierra leone", "singapore", "slovakia", "slovenia", "solomon islands",
   "somalia", "south africa", "south korea", "south sudan", "spain",
-  "sri lanka", "sudan", "suriname", "swaziland", "sweden", "switzerland",
-  "syria",
+  "sri lanka", "sudan", "suisse", "suriname", "swaziland", "sweden",
+  "switzerland", "syria",
   // T
   "taiwan", "tajikistan", "tanzania", "thailand", "timor-leste", "tobago",
-  "togo", "tonga", "trinidad", "tunisia", "turkey", "turkmenistan", "tuvalu",
-  "türkiye",
+  "togo", "tonga", "trinidad", "tunisia", "tunisie", "turkey", "turkmenistan",
+  "tuvalu", "türkiye",
   // U
   "uae", "uganda", "uk", "ukraine", "united arab emirates", "united kingdom",
   "uruguay", "uzbekistan",

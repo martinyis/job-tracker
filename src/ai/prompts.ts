@@ -68,11 +68,14 @@ export interface FilteringRules {
  */
 export function buildRelevanceFilterPrompt(
   profileSummary: string,
-  jobs: { linkedinId: string; title: string; company: string }[],
+  jobs: { linkedinId: string; title: string; company: string; location?: string }[],
   rules: FilteringRules,
 ): string {
   const jobList = jobs
-    .map((j) => `- ID: ${j.linkedinId} | Title: "${j.title}" | Company: "${j.company}"`)
+    .map((j) => {
+      const loc = (j.location || '').trim() || '(unknown)';
+      return `- ID: ${j.linkedinId} | Title: "${j.title}" | Company: "${j.company}" | Location: "${loc}"`;
+    })
     .join('\n');
 
   const jobSearchSection = rules.jobSearchDescription
@@ -99,9 +102,19 @@ A job is RELEVANT only if the role clearly involves the kind of work described a
 - Use this as a signal for what the candidate considers relevant. Titles that are far outside these patterns are likely irrelevant.`
     : '';
 
-  return `You are a STRICT job relevance filter. Given a candidate profile and a list of job postings (title + company only), return ONLY the IDs of jobs that are genuinely relevant.
+  return `You are a STRICT job relevance filter. Given a candidate profile and a list of job postings (title, company, and location), return ONLY the IDs of jobs that are genuinely relevant.
 
 RULES -- follow these exactly:
+
+0. HARD LOCATION RULE (applied FIRST, before everything else):
+   The candidate is based in the United States and is NOT willing to relocate.
+   REJECT any job whose Location is not in the United States.
+   - ACCEPT: locations containing "United States", "USA", "US", "U.S.", a US state name or USPS two-letter code (e.g. ", CA" / ", TX" / ", NY"), or US territories (PR, VI, GU).
+   - ACCEPT "Remote" / "Remote - United States" / "US Remote" / similar US-remote wording.
+   - REJECT any location that names a non-US country or city (e.g. Tunisia, Tunisie, Germany, Deutschland, France, India, Brazil, Brasil, UK, United Kingdom, Canada, Mexico, Australia, Singapore, Ireland, Philippines, Colombia, Argentina, Spain, Italy, Poland, Romania, Portugal, Greece, Türkiye, Turkey, Japan, Korea, China, Hong Kong, Nigeria, Egypt, etc.).
+   - REJECT if the location is "(unknown)" BUT the title or company clearly signals a non-US country (e.g. "Developer – Tunisie", "Engineer (Germany)", "BairesDev" / other non-US staffing firms advertising LATAM-based roles).
+   - When the location text is ambiguous and gives no non-US signal, proceed to the other rules.
+
 1. A job is RELEVANT only if it is a hands-on technical role where the person builds, develops, or engineers software products, features, or systems.
 2. When in doubt, REJECT. It is far better to miss a borderline job than to include an irrelevant one. The scraper runs frequently -- missed jobs will appear again.
 3. REJECT these categories regardless of how the title is worded:
