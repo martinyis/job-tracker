@@ -16,6 +16,8 @@ export interface ScrapedJob {
   company: string;
   link: string;
   postedDate: string;
+  /** Location text from the card (e.g. "San Francisco, CA", "Berlin, Germany"). Empty if missing. */
+  location: string;
   /** How many minutes ago this job was posted (parsed from card text) */
   minutesAgo: number;
 }
@@ -225,9 +227,11 @@ export class LinkedInScraper {
             const companyEl = el.querySelector(sels.companyName) as HTMLElement | null;
             const linkEl = el.querySelector(sels.jobLink) as HTMLElement | null;
             const dateEl = el.querySelector(sels.datePosted) as HTMLElement | null;
+            const locationEl = el.querySelector(sels.location) as HTMLElement | null;
 
             const rawTitle = titleEl?.innerText?.trim() || "";
             const rawCompany = companyEl?.innerText?.trim() || "";
+            const rawLocation = locationEl?.innerText?.trim() || "";
             let link = linkEl?.getAttribute("href") || "";
             if (!link) {
               const altA = el.querySelector('a[href*="jobs"]');
@@ -246,7 +250,7 @@ export class LinkedInScraper {
               cardTimeText = timeMatch ? timeMatch[0] : "";
             }
 
-            return { rawTitle, rawCompany, link, dateText, dateAttr, cardTimeText };
+            return { rawTitle, rawCompany, rawLocation, link, dateText, dateAttr, cardTimeText };
           });
         }, {
           jobCard: SELECTORS.search.jobCard,
@@ -254,6 +258,7 @@ export class LinkedInScraper {
           companyName: SELECTORS.search.companyName,
           jobLink: SELECTORS.search.jobLink,
           datePosted: SELECTORS.search.datePosted,
+          location: SELECTORS.search.location,
         });
 
         // Process raw data in Node.js (no more Playwright calls needed)
@@ -284,8 +289,9 @@ export class LinkedInScraper {
 
           const postedDate = raw.dateText || raw.dateAttr || raw.cardTimeText;
           const minutesAgo = this.parseMinutesAgo(raw.cardTimeText || raw.dateText, raw.dateAttr);
+          const location = raw.rawLocation.split("\n")[0].trim();
 
-          allJobs.push({ linkedinId, title, company, link, postedDate, minutesAgo });
+          allJobs.push({ linkedinId, title, company, link, postedDate, location, minutesAgo });
           extractionStats.success++;
         }
       } else {
@@ -536,8 +542,10 @@ export class LinkedInScraper {
           const companyEl = el.querySelector(sels.companyName) as HTMLElement | null;
           const linkEl = el.querySelector(sels.jobLink) as HTMLElement | null;
           const dateEl = el.querySelector(sels.datePosted) as HTMLElement | null;
+          const locationEl = el.querySelector(sels.location) as HTMLElement | null;
           const rawTitle = titleEl?.innerText?.trim() || "";
           const rawCompany = companyEl?.innerText?.trim() || "";
+          const rawLocation = locationEl?.innerText?.trim() || "";
           let link = linkEl?.getAttribute("href") || "";
           if (!link) { const altA = el.querySelector('a[href*="jobs"]'); link = altA?.getAttribute("href") || ""; }
           const dateText = dateEl?.textContent?.trim() || "";
@@ -548,7 +556,7 @@ export class LinkedInScraper {
             const timeMatch = text.match(/(\d+\s*(?:second|minute|hour|day|week|month|min|hr|sec)s?\s*ago|just now|moments?\s*ago)/i);
             cardTimeText = timeMatch ? timeMatch[0] : "";
           }
-          return { rawTitle, rawCompany, link, dateText, dateAttr, cardTimeText };
+          return { rawTitle, rawCompany, rawLocation, link, dateText, dateAttr, cardTimeText };
         });
       }, {
         jobCard: SELECTORS.search.jobCard,
@@ -556,6 +564,7 @@ export class LinkedInScraper {
         companyName: SELECTORS.search.companyName,
         jobLink: SELECTORS.search.jobLink,
         datePosted: SELECTORS.search.datePosted,
+        location: SELECTORS.search.location,
       });
 
       for (const raw of rawCards) {
@@ -576,7 +585,8 @@ export class LinkedInScraper {
         const link = raw.link.startsWith("http") ? raw.link.split("?")[0] : `https://www.linkedin.com${raw.link.split("?")[0]}`;
         const postedDate = raw.dateText || raw.dateAttr || raw.cardTimeText;
         const minutesAgo = this.parseMinutesAgo(raw.cardTimeText || raw.dateText, raw.dateAttr);
-        allJobs.push({ linkedinId, title, company, link, postedDate, minutesAgo });
+        const location = raw.rawLocation.split('\n')[0].trim();
+        allJobs.push({ linkedinId, title, company, link, postedDate, location, minutesAgo });
         extractionStats.success++;
       }
       logger.info(`Clean context extraction stats for "${keyword}"`, extractionStats);
@@ -609,6 +619,7 @@ export class LinkedInScraper {
     const companyEl = await card.$(SELECTORS.search.companyName);
     const linkEl = await card.$(SELECTORS.search.jobLink);
     const dateEl = await card.$(SELECTORS.search.datePosted);
+    const locationEl = await card.$(SELECTORS.search.location);
 
     // Use innerText (not textContent) to skip hidden/aria-hidden duplicates,
     // then take only the first line to strip "with verification" badge text.
@@ -706,12 +717,18 @@ export class LinkedInScraper {
       logger.debug(`Title cleaned: "${rawTitle.slice(0, 60)}" → "${title}"`);
     }
 
+    const rawLocation = locationEl
+      ? await locationEl.evaluate((el: HTMLElement) => el.innerText?.trim() || "")
+      : "";
+    const location = rawLocation.split("\n")[0].trim();
+
     return {
       linkedinId,
       title,
       company,
       link,
       postedDate,
+      location,
       minutesAgo,
     };
   }
@@ -1180,9 +1197,11 @@ export class LinkedInScraper {
           const companyEl = el.querySelector(sels.companyName) as HTMLElement | null;
           const linkEl = el.querySelector(sels.jobLink) as HTMLElement | null;
           const dateEl = el.querySelector(sels.datePosted) as HTMLElement | null;
+          const locationEl = el.querySelector(sels.location) as HTMLElement | null;
 
           const rawTitle = titleEl?.innerText?.trim() || "";
           const rawCompany = companyEl?.innerText?.trim() || "";
+          const rawLocation = locationEl?.innerText?.trim() || "";
           let link = linkEl?.getAttribute("href") || "";
           if (!link) {
             const altA = el.querySelector('a[href*="jobs"]');
@@ -1200,7 +1219,7 @@ export class LinkedInScraper {
             cardTimeText = timeMatch ? timeMatch[0] : "";
           }
 
-          return { rawTitle, rawCompany, link, dateText, dateAttr, cardTimeText };
+          return { rawTitle, rawCompany, rawLocation, link, dateText, dateAttr, cardTimeText };
         });
       },
       {
@@ -1209,6 +1228,7 @@ export class LinkedInScraper {
         companyName: SELECTORS.search.companyName,
         jobLink: SELECTORS.search.jobLink,
         datePosted: SELECTORS.search.datePosted,
+        location: SELECTORS.search.location,
       },
     );
 
@@ -1242,8 +1262,9 @@ export class LinkedInScraper {
 
       const postedDate = raw.dateText || raw.dateAttr || raw.cardTimeText;
       const minutesAgo = this.parseMinutesAgo(raw.cardTimeText || raw.dateText, raw.dateAttr);
+      const location = raw.rawLocation.split("\n")[0].trim();
 
-      allJobs.push({ linkedinId, title, company, link, postedDate, minutesAgo });
+      allJobs.push({ linkedinId, title, company, link, postedDate, location, minutesAgo });
       extractionStats.success++;
     }
 

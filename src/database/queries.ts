@@ -21,6 +21,7 @@ export interface JobMinimalInput {
   link: string;
   applyLink?: string;
   postedDate: string;
+  location?: string;
 }
 
 export async function saveJobMinimal(input: JobMinimalInput) {
@@ -33,6 +34,7 @@ export async function saveJobMinimal(input: JobMinimalInput) {
         link: input.link,
         applyLink: input.applyLink || '',
         postedDate: input.postedDate,
+        location: input.location || '',
         status: 'new',
       },
     });

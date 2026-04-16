@@ -1,6 +1,7 @@
 import { config, reloadConfig } from './config';
 import { logger } from './logger';
 import { LinkedInScraper, ScrapedJob } from './scraper/linkedin-scraper';
+import { isUSLocation } from './scraper/location-filter';
 import { getOrCreateProfileSummary } from './ai/resume-processor';
 import { filterRelevantJobs, ProfilePreferences } from './ai/job-matcher';
 import {
@@ -162,14 +163,26 @@ class KeywordRunner {
         totalAfterTimeFilter = recentCards.length;
         logger.info(`[${this.keyword}] Time filter: ${allCards.length} → ${recentCards.length} (≤${config.scraper.maxMinutesAgo}m)`);
 
+        // US location filter — LinkedIn's URL location filter is unreliable on
+        // public search, so we re-check each card's location text.
+        const afterLocationFilter = recentCards.filter((job) => isUSLocation(job.location));
+        const locationRejected = recentCards.length - afterLocationFilter.length;
+        if (locationRejected > 0) {
+          const rejectedSamples = recentCards
+            .filter((j) => !isUSLocation(j.location))
+            .slice(0, 10)
+            .map((j) => ({ title: j.title, company: j.company, location: j.location }));
+          logger.info(`[${this.keyword}] US location filter: ${recentCards.length} → ${afterLocationFilter.length} (removed ${locationRejected})`, { rejectedSamples });
+        }
+
         // Company blacklist filter (zero cost, before AI)
         const BLACKLISTED_COMPANIES = ['lensa', 'jobs via dice'];
-        const afterCompanyFilter = recentCards.filter((job) => {
+        const afterCompanyFilter = afterLocationFilter.filter((job) => {
           const companyLower = (job.company || '').toLowerCase().trim();
           return !BLACKLISTED_COMPANIES.some((bl) => companyLower.includes(bl));
         });
-        if (afterCompanyFilter.length < recentCards.length) {
-          logger.info(`[${this.keyword}] Company blacklist: ${recentCards.length} → ${afterCompanyFilter.length} (removed ${recentCards.length - afterCompanyFilter.length})`);
+        if (afterCompanyFilter.length < afterLocationFilter.length) {
+          logger.info(`[${this.keyword}] Company blacklist: ${afterLocationFilter.length} → ${afterCompanyFilter.length} (removed ${afterLocationFilter.length - afterCompanyFilter.length})`);
         }
 
         if (afterCompanyFilter.length > 0) {
@@ -199,6 +212,7 @@ class KeywordRunner {
                   link: job.link,
                   applyLink,
                   postedDate: job.postedDate,
+                  location: job.location,
                 });
                 totalSaved++;
                 logger.info(`[${this.keyword}]   SAVED: "${job.title}" at ${job.company} (${job.minutesAgo}m ago)`);
