@@ -2,11 +2,22 @@
  * Client-side location filter.
  *
  * LinkedIn's public search URL `location=...&geoId=...` params are unreliable —
- * foreign jobs still leak through. This module inspects the location text
- * extracted from each card and accepts only US-based jobs.
+ * foreign jobs still leak through. We inspect each card's location text.
+ *
+ * Strategy (evaluated in order):
+ *   1. Explicit US marker present (state abbrev, state name, "United States",
+ *      "USA", or US-territory code) → ACCEPT. This protects US cities with
+ *      foreign-sounding names (e.g. "Paris, TX", "Holland, MI", "Moscow, ID",
+ *      "Lebanon, TN", "Athens, GA", "Mexico, MO").
+ *   2. A known non-US country name appears (whole-word, case-insensitive) → REJECT.
+ *      Word-boundary matching prevents false positives like "india" triggering
+ *      on "Indianapolis" or "china" on "Chinatown".
+ *   3. Otherwise → ACCEPT. The AI relevance filter is the next line of defense,
+ *      so ambiguous entries ("Remote", bare cities, unknown regions) still get
+ *      a chance to be reviewed rather than silently dropped.
  */
 
-/** US state names (full) and DC. */
+/** US state names (full) + DC. Whole-word, case-insensitive matching. */
 const US_STATE_NAMES = [
   "alabama", "alaska", "arizona", "arkansas", "california", "colorado",
   "connecticut", "delaware", "florida", "georgia", "hawaii", "idaho",
@@ -20,121 +31,141 @@ const US_STATE_NAMES = [
   "district of columbia",
 ];
 
-/** US state USPS abbreviations + DC. Case-sensitive match (uppercase only). */
+/**
+ * USPS two-letter codes for all 50 states + DC + US territories.
+ * Case-sensitive (uppercase) match — "Foo, CA" is US, "Foo, ca" is noise.
+ */
 const US_STATE_ABBREVS = new Set([
   "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA", "HI", "ID",
   "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS",
   "MO", "MT", "NE", "NV", "NH", "NJ", "NM", "NY", "NC", "ND", "OH", "OK",
   "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV",
   "WI", "WY", "DC",
+  // US territories — treated as US for our purposes
+  "PR", "VI", "GU", "AS", "MP",
 ]);
 
 /**
- * Countries / regions that are NOT the US.
- * Kept conservative — only well-known country/region names.
- * Matched as case-insensitive substring on a lowercased location string.
- */
-const NON_US_MARKERS = [
-  "germany", "deutschland", "france", "united kingdom", " uk", "(uk)",
-  "england", "scotland", "wales", "ireland", "northern ireland",
-  "spain", "españa", "italy", "italia", "portugal", "netherlands", "holland",
-  "belgium", "luxembourg", "switzerland", "austria", "sweden", "norway",
-  "denmark", "finland", "iceland", "poland", "czech", "slovakia", "hungary",
-  "romania", "bulgaria", "greece", "turkey", "ukraine", "russia", "belarus",
-  "estonia", "latvia", "lithuania", "serbia", "croatia", "slovenia", "bosnia",
-  "north macedonia", "albania", "moldova", "georgia (country)", "armenia",
-  "canada", "mexico", "brazil", "brasil", "argentina", "chile", "colombia",
-  "peru", "venezuela", "uruguay", "paraguay", "bolivia", "ecuador",
-  "costa rica", "panama", "guatemala", "honduras", "nicaragua",
-  "el salvador", "dominican republic", "jamaica", "trinidad", "haiti",
-  "india", "pakistan", "bangladesh", "sri lanka", "nepal",
-  "china", "hong kong", "taiwan", "japan", "korea", "south korea",
-  "north korea", "singapore", "malaysia", "indonesia", "vietnam",
-  "thailand", "philippines", "cambodia", "laos", "myanmar",
-  "australia", "new zealand",
-  "united arab emirates", " uae", "(uae)", "saudi arabia", "qatar", "kuwait",
-  "bahrain", "oman", "israel", "jordan", "lebanon", "egypt", "morocco",
-  "tunisia", "algeria", "south africa", "nigeria", "kenya", "ghana",
-  "ethiopia", "uganda", "tanzania", "zimbabwe",
-];
-
-/**
- * Common US-specific metro / region phrases.
- * LinkedIn sometimes shows these without a state suffix.
- * Matched as case-insensitive substring.
- */
-const US_METRO_HINTS = [
-  "bay area", "silicon valley", "greater boston", "greater chicago",
-  "greater new york", "greater seattle", "greater atlanta", "greater miami",
-  "greater houston", "greater dallas", "greater denver", "greater phoenix",
-  "greater philadelphia", "greater los angeles", "greater san diego",
-  "greater minneapolis", "greater detroit", "greater st. louis",
-  "dc metro", "washington metro", "tri-state area",
-];
-
-/** Some cities that LinkedIn sometimes lists without a country suffix. */
-const NON_US_CITY_HINTS = [
-  "são paulo", "sao paulo", "rio de janeiro", "buenos aires",
-  "thessaloniki", "bucharest", "warsaw", "prague", "budapest",
-  "lisbon", "porto", "madrid", "barcelona", "paris", "lyon",
-  "berlin", "munich", "hamburg", "frankfurt", "dusseldorf", "stuttgart",
-  "amsterdam", "rotterdam", "brussels", "zurich", "geneva", "vienna",
-  "stockholm", "oslo", "copenhagen", "helsinki", "dublin", "london",
-  "manchester", "edinburgh", "glasgow", "bristol",
-  "tokyo", "seoul", "beijing", "shanghai", "shenzhen", "mumbai", "bangalore",
-  "bengaluru", "delhi", "new delhi", "hyderabad", "chennai", "pune",
-  "kolkata", "ho chi minh", "hanoi", "bangkok", "manila", "jakarta",
-  "kuala lumpur",
-  "sydney", "melbourne", "auckland", "toronto", "vancouver", "montreal",
-  "mexico city", "cdmx",
-  "dubai", "abu dhabi", "riyadh", "doha", "istanbul", "ankara",
-  "tel aviv", "cairo", "lagos", "nairobi", "johannesburg", "cape town",
-];
-
-/**
- * Returns true if the job's location text indicates it is US-based.
+ * Non-US countries, territories, and common language variants.
+ * Alphabetical for scannability. Matched as a whole word (case-insensitive).
  *
- * Rules (in order — US checks run FIRST so cities like "Holland, MI" aren't
- * wrongly rejected just because "holland" is also a country name):
- *  1. Empty/unknown → treat as US (be permissive; AI filter is next line of defense).
- *  2. Explicit US markers ("United States" / "USA" / state name / state abbrev / US metro) → accept.
- *  3. Explicit non-US markers (country names, major foreign cities) → reject.
- *  4. Default → reject (unknown locations default to rejected so junk doesn't leak through).
+ * NOTE: "georgia" is deliberately OMITTED here — it conflicts with the US
+ * state. Step 1 treats it as US. Georgia (the country) is a rare appearance
+ * on LinkedIn and the AI filter will catch it.
  */
+const NON_US_COUNTRIES = [
+  // A
+  "afghanistan", "albania", "algeria", "andorra", "angola", "antigua",
+  "argentina", "armenia", "australia", "austria", "azerbaijan",
+  // B
+  "bahamas", "bahrain", "bangladesh", "barbados", "barbuda", "belarus",
+  "belgium", "belize", "benin", "bhutan", "bolivia", "bosnia", "botswana",
+  "brasil", "brazil", "brunei", "bulgaria", "burkina faso", "burma", "burundi",
+  // C
+  "cambodia", "cameroon", "canada", "cape verde", "central african republic",
+  "chad", "chile", "china", "colombia", "comoros", "congo", "costa rica",
+  "croatia", "cuba", "cyprus", "czechia", "czech republic", "côte d'ivoire",
+  // D
+  "denmark", "deutschland", "djibouti", "dominica", "dominican republic",
+  // E
+  "east timor", "ecuador", "egypt", "el salvador", "england",
+  "equatorial guinea", "eritrea", "españa", "espana", "estonia", "eswatini",
+  "ethiopia",
+  // F
+  "fiji", "finland", "france",
+  // G
+  "gabon", "gambia", "germany", "ghana", "great britain", "greece", "grenada",
+  "guatemala", "guinea", "guinea-bissau", "guyana",
+  // H
+  "haiti", "herzegovina", "holland", "honduras", "hong kong", "hungary",
+  // I
+  "iceland", "india", "indonesia", "iran", "iraq", "ireland", "israel",
+  "italia", "italy", "ivory coast",
+  // J
+  "jamaica", "japan", "jordan",
+  // K
+  "kazakhstan", "kenya", "kiribati", "korea", "kosovo", "kuwait", "kyrgyzstan",
+  // L
+  "laos", "latvia", "lebanon", "lesotho", "liberia", "libya", "liechtenstein",
+  "lithuania", "luxembourg",
+  // M
+  "macao", "macau", "macedonia", "madagascar", "malawi", "malaysia", "maldives",
+  "mali", "malta", "marshall islands", "mauritania", "mauritius", "mexico",
+  "méxico", "micronesia", "moldova", "monaco", "mongolia", "montenegro",
+  "morocco", "mozambique", "myanmar",
+  // N
+  "namibia", "nauru", "nepal", "netherlands", "new zealand", "nicaragua",
+  "niger", "nigeria", "north korea", "north macedonia", "northern ireland",
+  "norway",
+  // O
+  "oman",
+  // P
+  "pakistan", "palau", "palestine", "panama", "papua new guinea", "paraguay",
+  "peru", "philippines", "poland", "polska", "portugal",
+  // Q
+  "qatar",
+  // R
+  "romania", "russia", "rwanda",
+  // S
+  "saint kitts", "saint lucia", "saint vincent", "samoa", "san marino",
+  "saudi arabia", "scotland", "senegal", "serbia", "seychelles",
+  "sierra leone", "singapore", "slovakia", "slovenia", "solomon islands",
+  "somalia", "south africa", "south korea", "south sudan", "spain",
+  "sri lanka", "sudan", "suriname", "swaziland", "sweden", "switzerland",
+  "syria",
+  // T
+  "taiwan", "tajikistan", "tanzania", "thailand", "timor-leste", "tobago",
+  "togo", "tonga", "trinidad", "tunisia", "turkey", "turkmenistan", "tuvalu",
+  "türkiye",
+  // U
+  "uae", "uganda", "uk", "ukraine", "united arab emirates", "united kingdom",
+  "uruguay", "uzbekistan",
+  // V
+  "vanuatu", "venezuela", "vietnam",
+  // W
+  "wales",
+  // Y
+  "yemen",
+  // Z
+  "zambia", "zimbabwe",
+];
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Single compiled regex for efficient whole-word matching of any non-US country. */
+const NON_US_COUNTRY_REGEX = new RegExp(
+  "\\b(?:" + NON_US_COUNTRIES.map(escapeRegex).join("|") + ")\\b",
+  "i",
+);
+
+/** Pre-compiled regex for each US state full name (whole-word, case-insensitive). */
+const US_STATE_NAME_REGEX = new RegExp(
+  "\\b(?:" + US_STATE_NAMES.map(escapeRegex).join("|") + ")\\b",
+  "i",
+);
+
 export function isUSLocation(rawLocation: string): boolean {
   const loc = (rawLocation || "").trim();
   if (!loc) return true;
 
   const lower = loc.toLowerCase();
 
-  // 2. Explicit US markers — checked first so US cities with internationally-ambiguous
-  //    names (e.g. "Holland, MI") are correctly accepted.
+  // 1. Explicit US markers — accept immediately so US cities with
+  //    foreign-sounding names ("Paris, TX", "Moscow, ID") survive Step 2.
   if (/\bunited states\b/.test(lower)) return true;
-  if (/\busa?\b/.test(lower)) return true; // matches "US" or "USA" (word-bounded)
-  if (/\bu\.s\.a?\.?\b/.test(lower)) return true; // matches "U.S." / "U.S.A."
+  if (/\busa?\b/.test(lower)) return true;            // "US" or "USA"
+  if (/\bu\.s\.a?\.?\b/.test(lower)) return true;     // "U.S." / "U.S.A."
+  if (US_STATE_NAME_REGEX.test(loc)) return true;
 
-  for (const state of US_STATE_NAMES) {
-    // whole-word match so "indiana" doesn't trigger on random substrings
-    if (new RegExp(`\\b${state}\\b`, "i").test(loc)) return true;
-  }
-
-  for (const metro of US_METRO_HINTS) {
-    if (lower.includes(metro)) return true;
-  }
-
-  // USPS abbreviation — must be comma-preceded, uppercase, word-bounded
-  //   e.g., "San Francisco, CA", "Remote, NY", "Holland, MI"
+  //    USPS state / territory abbreviation, comma-preceded uppercase.
   const abbrevMatch = loc.match(/,\s*([A-Z]{2})\b/);
   if (abbrevMatch && US_STATE_ABBREVS.has(abbrevMatch[1])) return true;
 
-  // 3. Explicit non-US markers
-  for (const marker of NON_US_MARKERS) {
-    if (lower.includes(marker)) return false;
-  }
-  for (const city of NON_US_CITY_HINTS) {
-    if (lower.includes(city)) return false;
-  }
+  // 2. Known non-US country → reject.
+  if (NON_US_COUNTRY_REGEX.test(lower)) return false;
 
-  // 4. Default: reject unknown
-  return false;
+  // 3. Ambiguous → accept; let the AI relevance filter be the final authority.
+  return true;
 }
