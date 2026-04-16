@@ -226,7 +226,9 @@
     }
 
     /**
-     * Sort & filter changed — fetch fresh results from server.
+     * Sort & filter changed — fetch fresh results from server AND sync the
+     * browser URL so any form POST (accept / reject / mark applied) redirects
+     * back here with the same sort & filter preserved via the Referer header.
      */
     function applyFilters() {
       var sortVal = document.getElementById('jb-sort').value;
@@ -236,7 +238,42 @@
       pagination.currentFilter = filterVal;
       pagination.offset = 0;
 
+      syncUrlFromState();
       fetchJobs(false);
+    }
+
+    /**
+     * Mirror pagination.currentStatus / currentSort / currentFilter into the
+     * browser URL without navigating. This lets server-rendered flows (form
+     * POSTs that redirect back via Referer) preserve the user's current view.
+     */
+    function syncUrlFromState() {
+      try {
+        var params = new URLSearchParams(window.location.search);
+        // status — preserved as-is when page loaded; 'new' is the default so
+        // only keep the param if it's been set by the filter chips.
+        var status = pagination.currentStatus;
+        if (status && status !== 'new') params.set('status', status);
+        else params.delete('status');
+        // sort — default is 'priority'; omit param when default to keep URLs tidy.
+        if (pagination.currentSort && pagination.currentSort !== 'priority') {
+          params.set('sort', pagination.currentSort);
+        } else {
+          params.delete('sort');
+        }
+        // filter — default 'all'
+        if (pagination.currentFilter && pagination.currentFilter !== 'all') {
+          params.set('filter', pagination.currentFilter);
+        } else {
+          params.delete('filter');
+        }
+        var qs = params.toString();
+        var newUrl = window.location.pathname + (qs ? '?' + qs : '');
+        window.history.replaceState(null, '', newUrl);
+      } catch (e) {
+        // history API unavailable — silently ignore; status updates still work,
+        // they just won't preserve sort/filter.
+      }
     }
 
     /**
@@ -473,9 +510,10 @@
         actionsHtml += '<form method="POST" action="/update-status" class="jb-status-form inline-form"><input type="hidden" name="id" value="' + job.id + '"><button type="submit" name="status" value="accepted" class="jb-decision-btn jb-decision-btn--accept" title="Accept"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></button></form>';
         actionsHtml += '<form method="POST" action="/update-status" class="jb-status-form inline-form"><input type="hidden" name="id" value="' + job.id + '"><button type="submit" name="status" value="rejected" class="jb-decision-btn jb-decision-btn--reject" title="Reject"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></form>';
       }
-      // Show "Mark Applied" as a subtle sub-action for accepted jobs
+      // For accepted jobs: show "Mark Applied" as the primary sub-action AND allow rejecting it
       if (job.status === 'accepted') {
         actionsHtml += '<form method="POST" action="/update-status" class="jb-status-form inline-form"><input type="hidden" name="id" value="' + job.id + '"><button type="submit" name="status" value="applied" class="jb-action-btn jb-action-btn--applied"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Mark Applied</button></form>';
+        actionsHtml += '<form method="POST" action="/update-status" class="jb-status-form inline-form"><input type="hidden" name="id" value="' + job.id + '"><button type="submit" name="status" value="rejected" class="jb-decision-btn jb-decision-btn--reject" title="Reject"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></form>';
       }
       // Show "Mark Interviewing" for applied jobs
       if (job.status === 'applied') {
