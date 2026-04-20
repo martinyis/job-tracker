@@ -177,9 +177,52 @@ async function enrichmentLoop(): Promise<void> {
         continue;
       }
 
-      // Step 1.5a: Unpaid/volunteer dealbreaker — reject before AI call
       const descLower = jobDetail.description.toLowerCase();
       const titleLower = job.title.toLowerCase();
+
+      // Step 1.5-pre: "No longer accepting applications" dealbreaker —
+      // reject before AI call. Trust the scraper flag; fall back to a
+      // description scan in case LinkedIn renders the banner in the body.
+      const notAccepting =
+        jobDetail.notAcceptingApplications ||
+        descLower.includes('no longer accepting applications');
+      if (notAccepting) {
+        logger.info('Job rejected: no longer accepting applications', {
+          id: job.id,
+          title: job.title,
+          company: job.company,
+        });
+
+        await updateJobEnrichment(job.id, {
+          description: jobDetail.description,
+          priority: 'low',
+          priorityReason: 'Dealbreaker: no longer accepting applications',
+          matchScore: 0,
+          matchReason: '',
+          keyMatches: [],
+          actionItems: [],
+          redFlags: ['No longer accepting applications'],
+          companyInfo: jobDetail.companyInfo,
+          applicantCount: jobDetail.applicantCount,
+          seniorityLevel: jobDetail.seniorityLevel,
+          employmentType: jobDetail.employmentType,
+          jobFunction: jobDetail.jobFunction,
+          postedBy: jobDetail.postedBy,
+          postedByTitle: jobDetail.postedByTitle,
+          postedByProfile: jobDetail.postedByProfile,
+          contactPeople: jobDetail.contactPeople,
+          scoreBreakdown: { dealbreaker: 'notAcceptingApplications' },
+          dealbreaker: 'notAcceptingApplications',
+          status: 'rejected',
+        });
+
+        await markEnricherSuccess();
+        jobsProcessedSinceBrowserStart++;
+        await sleep(randomDelay(BETWEEN_JOBS_DELAY.min, BETWEEN_JOBS_DELAY.max));
+        continue;
+      }
+
+      // Step 1.5a: Unpaid/volunteer dealbreaker — reject before AI call
       const unpaidPatterns = ['unpaid', 'no pay', 'uncompensated', 'volunteer position', 'volunteer role', 'unpaid internship', 'for college credit', 'for credit only', 'credit-only'];
       const isUnpaid = unpaidPatterns.some((p) => descLower.includes(p) || titleLower.includes(p));
       if (isUnpaid) {

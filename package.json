@@ -10,6 +10,7 @@
     "ui": "tsx src/ui/server.ts",
     "agent": "tsx src/scraper-agent.ts",
     "enricher": "tsx src/enricher-agent.ts",
+    "filter-applicants": "tsx src/applicant-filter-agent.ts",
     "scrape": "tsx src/scheduler.ts",
     "login": "tsx src/scraper/login-helper.ts",
     "prisma:generate": "prisma generate",

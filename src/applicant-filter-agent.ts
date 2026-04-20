@@ -102,7 +102,19 @@ async function main(): Promise<void> {
       const detail = await detailScraper!.scrapeJobDetail(job.linkedinId);
       const count = parseApplicantCount(detail.applicantCount);
 
-      if (count !== null && count >= 100) {
+      if (detail.notAcceptingApplications) {
+        await prisma.job.update({
+          where: { id: job.id },
+          data: {
+            status: 'rejected',
+            dealbreaker: 'notAcceptingApplications',
+            applicantCount: detail.applicantCount,
+            rejectedAt: new Date(),
+          },
+        });
+        rejectedCount++;
+        logger.info(`[${processedCount}/${total}] ${job.title} @ ${job.company} → REJECTED (no longer accepting applications)`);
+      } else if (count !== null && count >= 100) {
         await prisma.job.update({
           where: { id: job.id },
           data: {

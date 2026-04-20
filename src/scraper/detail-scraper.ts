@@ -23,6 +23,7 @@ export interface JobDetail {
   seniorityLevel: string;
   employmentType: string;
   jobFunction: string;
+  notAcceptingApplications: boolean;
 }
 
 const MAX_RETRIES = 4;
@@ -267,8 +268,10 @@ export class DetailScraper {
         const postedByTitle = contactPeople.length > 0 ? contactPeople[0].title : '';
         const postedByProfile = contactPeople.length > 0 ? contactPeople[0].profileUrl : '';
 
-        // 5. Applicant count — scan text nodes for "applicant" keyword
+        // 5. Applicant count — scan text nodes for "applicant" keyword.
+        //    Also flag jobs that are "No longer accepting applications".
         let applicantCount = '';
+        let notAcceptingApplications = false;
         const tw = document.createTreeWalker(
           document.querySelector('main') || document.body,
           NodeFilter.SHOW_TEXT,
@@ -276,10 +279,14 @@ export class DetailScraper {
         let nd: Node | null;
         while ((nd = tw.nextNode())) {
           const t = nd.textContent?.trim() || '';
-          if (t.length > 3 && t.length < 100 && /applicant/i.test(t)) {
-            applicantCount = t;
-            break;
+          if (!t) continue;
+          if (!notAcceptingApplications && /no longer accepting applications/i.test(t)) {
+            notAcceptingApplications = true;
           }
+          if (!applicantCount && t.length > 3 && t.length < 100 && /applicant/i.test(t)) {
+            applicantCount = t;
+          }
+          if (notAcceptingApplications && applicantCount) break;
         }
 
         // 6. Metadata (seniority, employment type, job function)
@@ -340,6 +347,7 @@ export class DetailScraper {
           seniorityLevel,
           employmentType,
           jobFunction,
+          notAcceptingApplications,
         };
       });
 
@@ -366,6 +374,7 @@ export class DetailScraper {
         applicantCount: result.applicantCount,
         seniorityLevel: result.seniorityLevel,
         employmentType: result.employmentType,
+        notAcceptingApplications: result.notAcceptingApplications,
       });
 
       return result;
