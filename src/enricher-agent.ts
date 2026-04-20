@@ -32,6 +32,8 @@ import { isTelegramConfigured, sendUrgentJobNotification } from './notifications
  */
 function parseApplicantCount(text: string): number | null {
   if (!text) return null;
+  // "Be among the first N applicants" — N is a cap, not the actual count.
+  if (/\bfirst\s+\d+\s+applicants?\b/i.test(text)) return 0;
   const match = text.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : null;
 }

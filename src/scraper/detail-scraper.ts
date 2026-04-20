@@ -277,13 +277,19 @@ export class DetailScraper {
           NodeFilter.SHOW_TEXT,
         );
         let nd: Node | null;
+        // Covers: "25 applicants", "Over 100 applicants", "100+ applicants",
+        // "100+ people clicked apply", "Over 100 people clicked apply",
+        // "Be among the first 25 applicants".
+        const applicantRegex = /\b(over\s+\d+|\d+\s*\+?)\s*(applicants?|people\s+clicked\s+apply)/i;
+        const firstApplicantsRegex = /\bfirst\s+\d+\s+applicants?\b/i;
         while ((nd = tw.nextNode())) {
           const t = nd.textContent?.trim() || '';
           if (!t) continue;
           if (!notAcceptingApplications && /no longer accepting applications/i.test(t)) {
             notAcceptingApplications = true;
           }
-          if (!applicantCount && t.length > 3 && t.length < 100 && /applicant/i.test(t)) {
+          if (!applicantCount && t.length > 3 && t.length < 150 &&
+              (applicantRegex.test(t) || firstApplicantsRegex.test(t))) {
             applicantCount = t;
           }
           if (notAcceptingApplications && applicantCount) break;

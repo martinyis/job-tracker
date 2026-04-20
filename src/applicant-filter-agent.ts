@@ -10,6 +10,8 @@ let detailScraper: DetailScraper | null = null;
 
 function parseApplicantCount(text: string): number | null {
   if (!text) return null;
+  // "Be among the first N applicants" — N is a cap, not the actual count.
+  if (/\bfirst\s+\d+\s+applicants?\b/i.test(text)) return 0;
   const match = text.match(/(\d+)/);
   return match ? parseInt(match[1], 10) : null;
 }
@@ -31,44 +33,14 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Split: jobs that already have applicant data (from enrichment) vs those that need scraping
-  const alreadyHaveCount = jobs.filter((j) => j.applicantCount && j.applicantCount.length > 0);
-  const needScraping = jobs.filter((j) => !j.applicantCount || j.applicantCount.length === 0);
-
   let rejectedCount = 0;
   let processedCount = 0;
   const total = jobs.length;
 
-  // Phase 1: Check jobs that already have applicant count data (no browser needed)
-  for (const job of alreadyHaveCount) {
-    if (shutdownRequested) break;
-
-    processedCount++;
-    const count = parseApplicantCount(job.applicantCount);
-
-    if (count !== null && count >= 100) {
-      await prisma.job.update({
-        where: { id: job.id },
-        data: {
-          status: 'rejected',
-          dealbreaker: 'tooManyApplicants',
-          rejectedAt: new Date(),
-        },
-      });
-      rejectedCount++;
-      logger.info(`[${processedCount}/${total}] ${job.title} @ ${job.company} → REJECTED (${count} applicants, cached)`);
-    } else {
-      logger.info(`[${processedCount}/${total}] ${job.title} @ ${job.company} → kept (${job.applicantCount || 'no data'}, cached)`);
-    }
-  }
-
-  if (needScraping.length === 0 || shutdownRequested) {
-    logger.info('Applicant filter complete', { total, rejected: rejectedCount, processedCount });
-    return;
-  }
-
-  // Phase 2: Scrape jobs that don't have applicant count yet
-  logger.info(`Launching browser to check ${needScraping.length} jobs without applicant data`);
+  // Always re-scrape: LinkedIn state changes after the initial card scrape
+  // (jobs fill up and eventually stop accepting applications). Cached
+  // applicantCount strings go stale fast, so we fetch fresh data for each job.
+  logger.info(`Launching browser to re-check ${total} new jobs with fresh data`);
 
   const BETWEEN_JOBS_DELAY = { min: 3000, max: 8000 };
   const BROWSER_RESTART_INTERVAL = 50;
@@ -84,7 +56,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  for (const job of needScraping) {
+  for (const job of jobs) {
     if (shutdownRequested) break;
 
     processedCount++;
