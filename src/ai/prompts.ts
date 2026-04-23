@@ -116,7 +116,7 @@ RULES -- follow these exactly:
    - When the location text is ambiguous and gives no non-US signal, proceed to the other rules.
 
 1. A job is RELEVANT only if it is a hands-on technical role where the person builds, develops, or engineers software products, features, or systems.
-2. When in doubt, REJECT. It is far better to miss a borderline job than to include an irrelevant one. The scraper runs frequently -- missed jobs will appear again.
+2. When in doubt, ACCEPT. It is better to surface a borderline job for human review than to silently drop one that might be a good fit. Only REJECT when a rule below clearly applies.
 3. REJECT these categories regardless of how the title is worded:
    - Sales/presales roles (Solutions Engineer, Sales Engineer, Solutions Architect)
    - Developer relations/advocacy (Developer Advocate, Developer Evangelist, Community Engineer)
