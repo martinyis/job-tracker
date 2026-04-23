@@ -14,7 +14,7 @@ export const config = {
   nvidia: {
     apiKey: process.env.NVIDIA_API_KEY || '',
     baseURL: 'https://integrate.api.nvidia.com/v1',
-    model: 'qwen/qwen3.5-122b-a10b',
+    model: 'meta/llama-3.3-70b-instruct',
     maxTokens: 4096,
     temperature: 0.3,
   },
